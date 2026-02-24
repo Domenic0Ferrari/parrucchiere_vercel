@@ -1,6 +1,7 @@
- "use client";
+"use client";
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -21,16 +22,16 @@ export default function Home() {
 					<nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 text-sm text-black bg-white">
 						<div className="font-semibold">Salone Online</div>
 						<div className="hidden items-center gap-6 md:flex">
-							<a href="#home" className="hover:text-white/90">
+							<Link href="/" className="hover:text-white/90 text-white">
 								Home
-							</a>
-							<a href="#servizi" className="hover:text-white/90">
+							</Link>
+							<Link href="/servizi" className="hover:text-white/90 text-white">
 								Servizi
-							</a>
-							<a href="#chi-siamo" className="hover:text-white/90">
+							</Link>
+							<a href="#chi-siamo" className="hover:text-white/90 text-white">
 								Chi siamo
 							</a>
-							<a href="#contattaci" className="hover:text-white/90">
+							<a href="#contattaci" className="hover:text-white/90 text-white">
 								Contattaci
 							</a>
 						</div>
@@ -51,30 +52,30 @@ export default function Home() {
 					{menuOpen && (
 						<div className="mx-auto max-w-5xl px-4 pb-4 md:hidden">
 							<div className="space-y-1 rounded-xl bg-black/70 p-3 text-sm text-zinc-100 shadow-lg backdrop-blur">
-								<a
-									href="#home"
+								<Link
+									href="/"
 									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
 									onClick={() => setMenuOpen(false)}
 								>
 									Home
-								</a>
-								<a
-									href="#servizi"
-									className="block rounded-lg px-2 py-1.5 hover:bg_WHITE/10"
+								</Link>
+								<Link
+									href="/servizi"
+									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
 									onClick={() => setMenuOpen(false)}
 								>
 									Servizi
-								</a>
+								</Link>
 								<a
 									href="#chi-siamo"
-									className="block rounded-lg px-2 py-1.5 hover:bg_WHITE/10"
+									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
 									onClick={() => setMenuOpen(false)}
 								>
 									Chi siamo
 								</a>
 								<a
 									href="#contattaci"
-									className="block rounded-lg px-2 py-1.5 hover:bg_WHITE/10"
+									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
 									onClick={() => setMenuOpen(false)}
 								>
 									Contattaci
@@ -101,6 +102,20 @@ export default function Home() {
 							consiglio il look pi&ugrave; adatto, utilizzando solo prodotti
 							selezionati e tecniche aggiornate.
 						</p>
+						<div className="pt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+							<a
+								href="/servizi"
+								className="inline-flex w-fit items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-white/40"
+							>
+								Prenota un servizio
+							</a>
+							<a
+								href="#contattaci"
+								className="inline-flex w-fit items-center justify-center rounded-full border border-white/25 bg-white/10 px-6 py-3 text-sm font-medium text-white backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30"
+							>
+								Contattaci
+							</a>
+						</div>
 					</section>
 				</main>
 			</div>
