@@ -178,24 +178,10 @@ export default function ServiziPage() {
 						Tagli, colore e styling su misura. Scegli il trattamento e prenota
 						in pochi clic.
 					</p>
-					<div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-						<a
-							href="#servizi"
-							className="inline-flex w-fit items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-white/40"
-						>
-							Vedi i servizi
-						</a>
-						<a
-							href="#contattaci"
-							className="inline-flex w-fit items-center justify-center rounded-full border border-white/25 bg-white/10 px-6 py-3 text-sm font-medium text-white backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30"
-						>
-							Contattaci
-						</a>
-					</div>
 				</div>
 			</div>
 
-			<main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+			<main className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
 				<section id="servizi" className="scroll-mt-24">
 					<h2 className="text-xl font-semibold text-zinc-900 sm:text-2xl">
 						Servizi
@@ -293,8 +279,8 @@ function FilterButton(props: {
 			type="button"
 			onClick={props.onClick}
 			className={`rounded-full px-4 py-2 text-xs font-semibold transition ${props.active
-					? "bg-zinc-900 text-white"
-					: "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100"
+				? "bg-zinc-900 text-white"
+				: "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100"
 				}`}
 		>
 			{props.label}
@@ -320,7 +306,7 @@ function ServiceCard(props: {
 				</p>
 			</div>
 			<Link
-				href="/#prenota"
+				href="/prenota"
 				className="mt-4 inline-flex w-fit items-center justify-center rounded-full bg-zinc-900 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-zinc-800"
 			>
 				Prenota
