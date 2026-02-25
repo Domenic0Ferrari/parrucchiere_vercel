@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -94,7 +94,17 @@ function createAvailability(operatorId: string, day: Date): string[] {
 	});
 }
 
-export default function BookPage() {
+function BookPageFallback() {
+	return (
+		<div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
+			<main className="mx-auto flex min-h-[60vh] w-full max-w-5xl items-center justify-center px-4 py-8 sm:px-6">
+				<p className="text-sm text-zinc-500">Caricamento prenotazione...</p>
+			</main>
+		</div>
+	);
+}
+
+function BookPageContent() {
 	const searchParams = useSearchParams();
 	const selectedService = searchParams.get("servizio");
 	const [selectedOperator, setSelectedOperator] = useState(operators[0]?.id ?? "");
@@ -471,5 +481,13 @@ export default function BookPage() {
 				</section>
 			</main>
 		</div>
+	);
+}
+
+export default function BookPage() {
+	return (
+		<Suspense fallback={<BookPageFallback />}>
+			<BookPageContent />
+		</Suspense>
 	);
 }
