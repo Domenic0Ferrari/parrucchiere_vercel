@@ -74,7 +74,6 @@ const services = [
 ] as const;
 
 export default function ServiziPage() {
-	const [menuOpen, setMenuOpen] = useState(false);
 	const [selectedCategory, setSelectedCategory] =
 		useState<ServiceCategory>("tutti");
 
@@ -87,86 +86,21 @@ export default function ServiziPage() {
 
 	return (
 		<div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
-			<div className="relative h-full w-full overflow-hidden">
+			<div className="relative h-[280px] w-full overflow-hidden sm:h-[380px] lg:h-[460px]">
 				<Image
-					src="/capelli_home.jpg"
-					alt="capelli_home"
+					src="/capelli_servizi.jpg"
+					alt="capelli_servizi"
 					fill
 					priority
-					className="absolute inset-0 h-full w-full object-cover"
+					quality={100}
+					sizes="100vw"
+					className="absolute inset-0 h-full w-full object-cover object-center"
 				/>
 				<div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/20" />
 
-				<header className="absolute inset-x-0 top-0 z-20">
-					<nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 text-sm text-black bg-white">
-						<div className="font-semibold">Salone Online</div>
-						<div className="hidden items-center gap-6 md:flex">
-							<Link href="/" className="text-white hover:text-white/90">
-								Home
-							</Link>
-							<a href="/servizi" className="text-white hover:text-white/90">
-								Servizi
-							</a>
-							<a href="#chi-siamo" className="text-white hover:text-white/90">
-								Chi siamo
-							</a>
-							<a href="#contattaci" className="text-white hover:text-white/90">
-								Contattaci
-							</a>
-						</div>
-						<button
-							type="button"
-							className="inline-flex items-center justify-center rounded-md border border-white/20 bg-black/30 p-2 text-zinc-100 shadow-sm backdrop-blur hover:bg-black/50 md:hidden"
-							aria-label="Apri il menu"
-							onClick={() => setMenuOpen((open) => !open)}
-						>
-							<span className="sr-only">Apri il menu</span>
-							<div className="space-y-1.5">
-								<span className="block h-0.5 w-5 bg-zinc-100" />
-								<span className="block h-0.5 w-5 bg-zinc-100" />
-								<span className="block h-0.5 w-5 bg-zinc-100" />
-							</div>
-						</button>
-					</nav>
-					{menuOpen && (
-						<div className="mx-auto max-w-5xl px-4 pb-4 md:hidden">
-							<div className="space-y-1 rounded-xl bg-black/70 p-3 text-sm text-zinc-100 shadow-lg backdrop-blur">
-								<Link
-									href="/"
-									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
-									onClick={() => setMenuOpen(false)}
-								>
-									Home
-								</Link>
-								<Link
-									href="/servizi"
-									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
-									onClick={() => setMenuOpen(false)}
-								>
-									Servizi
-								</Link>
-								<a
-									href="#chi-siamo"
-									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
-									onClick={() => setMenuOpen(false)}
-								>
-									Chi siamo
-								</a>
-								<a
-									href="#contattaci"
-									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
-									onClick={() => setMenuOpen(false)}
-								>
-									Contattaci
-								</a>
-							</div>
-						</div>
-					)}
-				</header>
-
 				<div
 					id="home"
-					className="relative z-10 mx-auto flex h-full max-w-5xl flex-col justify-end px-4 pb-10 pt-24 sm:px-6"
+					className="relative z-10 mx-auto flex h-full max-w-5xl flex-col justify-center px-4 pb-10 pt-24 sm:px-6"
 				>
 					<p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-300">
 						I NOSTRI SERVIZI
@@ -221,49 +155,6 @@ export default function ServiziPage() {
 						))}
 					</div>
 				</section>
-
-				<section id="chi-siamo" className="mt-8 scroll-mt-24">
-					<h2 className="text-xl font-semibold text-zinc-900 sm:text-2xl">
-						Chi siamo
-					</h2>
-					<p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-600">
-						Un salone dove tecnica e ascolto vanno di pari passo: partiamo dalla
-						tua routine e dai tuoi obiettivi per consigliarti il taglio o la
-						colorazione piu adatti, con uno stile sempre coerente con la tua
-						persona.
-					</p>
-				</section>
-
-				<section id="contattaci" className="mt-8 scroll-mt-24">
-					<div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-						<h2 className="text-xl font-semibold text-zinc-900 sm:text-2xl">
-							Contattaci
-						</h2>
-						<p className="mt-1 text-sm text-zinc-600">
-							Per info su disponibilita, prezzi e promozioni, scrivici o chiamaci.
-						</p>
-						<div className="mt-5 grid gap-4 sm:grid-cols-3">
-							<div className="rounded-xl bg-zinc-50 p-4">
-								<div className="text-xs font-medium text-zinc-500">Telefono</div>
-								<div className="mt-1 text-sm font-semibold text-zinc-900">
-									+39 000 000 0000
-								</div>
-							</div>
-							<div className="rounded-xl bg-zinc-50 p-4">
-								<div className="text-xs font-medium text-zinc-500">Email</div>
-								<div className="mt-1 text-sm font-semibold text-zinc-900">
-									info@saleone.it
-								</div>
-							</div>
-							<div className="rounded-xl bg-zinc-50 p-4">
-								<div className="text-xs font-medium text-zinc-500">Indirizzo</div>
-								<div className="mt-1 text-sm font-semibold text-zinc-900">
-									Via Esempio 1, Citta
-								</div>
-							</div>
-						</div>
-					</div>
-				</section>
 			</main>
 		</div>
 	);
@@ -294,6 +185,16 @@ function ServiceCard(props: {
 	price: string;
 	duration: string;
 }) {
+	const handleStartBooking = () => {
+		if (typeof window === "undefined") return;
+		window.sessionStorage.setItem(
+			"booking_access_token",
+			JSON.stringify({
+				service: props.title,
+			}),
+		);
+	};
+
 	return (
 		<article className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
 			<div className="space-y-2">
@@ -306,7 +207,11 @@ function ServiceCard(props: {
 				</p>
 			</div>
 			<Link
-				href="/prenota"
+				href={{
+					pathname: "/book",
+					query: { servizio: props.title },
+				}}
+				onClick={handleStartBooking}
 				className="mt-4 inline-flex w-fit items-center justify-center rounded-full bg-zinc-900 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-zinc-800"
 			>
 				Prenota

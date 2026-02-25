@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import {
 	Select,
@@ -68,27 +69,44 @@ function formatMonthLabel(date: Date): string {
 	}).format(date);
 }
 
-function isWeekend(date: Date): boolean {
-	const day = date.getDay();
-	return day === 0 || day === 6;
+function formatFullDate(date: Date): string {
+	return new Intl.DateTimeFormat("it-IT", {
+		weekday: "long",
+		day: "2-digit",
+		month: "long",
+		year: "numeric",
+	}).format(date);
 }
 
-function createAvailability(operatorId: string, dayIndex: number): string[] {
-	if (dayIndex % 7 === 6) return [];
+function isClosedDay(date: Date): boolean {
+	const day = date.getDay();
+	return day === 0 || day === 1;
+}
+
+function createAvailability(operatorId: string, day: Date): string[] {
+	const weekday = day.getDay();
+	if (weekday === 0 || weekday === 1) return [];
 
 	return baseSlots.filter((_, slotIndex) => {
-		const seed = operatorId.charCodeAt(0) + dayIndex + slotIndex;
+		const daySeed = day.getFullYear() * 10000 + (day.getMonth() + 1) * 100 + day.getDate();
+		const seed = operatorId.charCodeAt(0) + daySeed + slotIndex;
 		return seed % 3 !== 0;
 	});
 }
 
-export default function PrenotaPage() {
-	const [menuOpen, setMenuOpen] = useState(false);
+export default function BookPage() {
+	const searchParams = useSearchParams();
+	const selectedService = searchParams.get("servizio");
 	const [selectedOperator, setSelectedOperator] = useState(operators[0]?.id ?? "");
 	const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 	const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 	const [weekStartIndex, setWeekStartIndex] = useState(0);
 	const [weekAnimationKey, setWeekAnimationKey] = useState(0);
+	const [showDetailsForm, setShowDetailsForm] = useState(false);
+	const detailsFormRef = useRef<HTMLFormElement | null>(null);
+	const [fullName, setFullName] = useState("");
+	const [email, setEmail] = useState("");
+	const [phone, setPhone] = useState("");
 
 	const days = useMemo(() => getNextDays(28), []);
 	const maxWeekStart = Math.max(0, days.length - 7);
@@ -96,9 +114,58 @@ export default function PrenotaPage() {
 	const headerDate = visibleDays[0] ?? days[0];
 
 	const availableSlots = useMemo(
-		() => createAvailability(selectedOperator, selectedDayIndex),
-		[selectedOperator, selectedDayIndex],
+		() => createAvailability(selectedOperator, days[selectedDayIndex] ?? days[0]),
+		[selectedOperator, selectedDayIndex, days],
 	);
+	const selectedDate = days[selectedDayIndex] ?? days[0];
+	const isRequestFormValid =
+		fullName.trim().length > 0 &&
+		email.trim().length > 0 &&
+		phone.trim().length > 0;
+	const isAccessAllowed = useMemo(() => {
+		if (!selectedService || typeof window === "undefined") return false;
+
+		const tokenRaw = window.sessionStorage.getItem("booking_access_token");
+		if (!tokenRaw) return false;
+
+		try {
+			const token = JSON.parse(tokenRaw) as { service?: string };
+			const isMatchingService = token.service === selectedService;
+			return isMatchingService;
+		} catch {
+			return false;
+		}
+	}, [selectedService]);
+
+	useEffect(() => {
+		if (!showDetailsForm) return;
+		detailsFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+	}, [showDetailsForm]);
+
+	if (!isAccessAllowed) {
+		return (
+			<div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
+				<main className="mx-auto flex min-h-[60vh] w-full max-w-5xl items-center justify-center px-4 py-8 sm:px-6">
+					<div className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+						<h1 className="text-xl font-semibold text-zinc-900">
+							Accesso non consentito
+						</h1>
+						<p className="mt-2 text-sm text-zinc-600">
+							Per aprire la pagina prenotazione devi prima selezionare un servizio e premere &quot;Prenota&quot; dalla pagina servizi.
+						</p>
+						<div className="mt-4 flex flex-wrap gap-3">
+							<Link
+								href="/service"
+								className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800"
+							>
+								Vai ai servizi
+							</Link>
+						</div>
+					</div>
+				</main>
+			</div>
+		);
+	}
 
 	const handleWeekShift = (direction: -1 | 1) => {
 		const offsetInWeek = Math.min(6, Math.max(0, selectedDayIndex - weekStartIndex));
@@ -111,6 +178,7 @@ export default function PrenotaPage() {
 		setWeekStartIndex(nextStart);
 		setSelectedDayIndex(nextSelected);
 		setSelectedSlot(null);
+		setShowDetailsForm(false);
 		setWeekAnimationKey((current) => current + 1);
 	};
 
@@ -126,63 +194,6 @@ export default function PrenotaPage() {
 				/>
 				<div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/20" />
 
-				<header className="absolute inset-x-0 top-0 z-20">
-					<nav className="mx-auto flex max-w-5xl items-center justify-between bg-white px-4 py-4 text-sm text-black">
-						<div className="font-semibold">Salone Online</div>
-						<div className="hidden items-center gap-6 md:flex">
-							<Link href="/" className="text-zinc-700 hover:text-zinc-900">
-								Home
-							</Link>
-							<Link href="/servizi" className="text-zinc-700 hover:text-zinc-900">
-								Servizi
-							</Link>
-							<Link href="/prenota" className="font-semibold text-zinc-900">
-								Prenota
-							</Link>
-						</div>
-						<button
-							type="button"
-							className="inline-flex items-center justify-center rounded-md border border-white/20 bg-black/30 p-2 text-zinc-100 shadow-sm backdrop-blur hover:bg-black/50 md:hidden"
-							aria-label="Apri il menu"
-							onClick={() => setMenuOpen((open) => !open)}
-						>
-							<span className="sr-only">Apri il menu</span>
-							<div className="space-y-1.5">
-								<span className="block h-0.5 w-5 bg-zinc-100" />
-								<span className="block h-0.5 w-5 bg-zinc-100" />
-								<span className="block h-0.5 w-5 bg-zinc-100" />
-							</div>
-						</button>
-					</nav>
-					{menuOpen && (
-						<div className="mx-auto max-w-5xl px-4 pb-4 md:hidden">
-							<div className="space-y-1 rounded-xl bg-black/70 p-3 text-sm text-zinc-100 shadow-lg backdrop-blur">
-								<Link
-									href="/"
-									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
-									onClick={() => setMenuOpen(false)}
-								>
-									Home
-								</Link>
-								<Link
-									href="/servizi"
-									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
-									onClick={() => setMenuOpen(false)}
-								>
-									Servizi
-								</Link>
-								<Link
-									href="/prenota"
-									className="block rounded-lg px-2 py-1.5 hover:bg-white/10"
-									onClick={() => setMenuOpen(false)}
-								>
-									Prenota
-								</Link>
-							</div>
-						</div>
-					)}
-				</header>
-
 				<div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col justify-end px-4 pb-10 pt-24 sm:px-6">
 					<p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-300">
 						PRENOTA ORA
@@ -196,6 +207,15 @@ export default function PrenotaPage() {
 			<main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
 				<section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
 					<div className="grid gap-6">
+						<div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+							<p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+								Servizio selezionato
+							</p>
+							<p className="mt-1 text-sm font-semibold text-zinc-900">
+								{selectedService ?? "Nessun servizio selezionato"}
+							</p>
+						</div>
+
 						<div>
 							<label
 								htmlFor="operator"
@@ -209,6 +229,7 @@ export default function PrenotaPage() {
 									setSelectedOperator(value);
 									setSelectedDayIndex(weekStartIndex);
 									setSelectedSlot(null);
+									setShowDetailsForm(false);
 								}}
 							>
 								<SelectTrigger id="operator">
@@ -277,7 +298,7 @@ export default function PrenotaPage() {
 									{visibleDays.map((day, visibleIndex) => {
 										const index = weekStartIndex + visibleIndex;
 										const selected = selectedDayIndex === index;
-										const muted = isWeekend(day) && !selected;
+										const muted = isClosedDay(day) && !selected;
 
 										return (
 											<button
@@ -286,24 +307,23 @@ export default function PrenotaPage() {
 												onClick={() => {
 													setSelectedDayIndex(index);
 													setSelectedSlot(null);
+													setShowDetailsForm(false);
 												}}
 												className="flex flex-col items-center rounded-xl px-1 py-1.5 text-center transition hover:bg-zinc-200/60"
 											>
 												<span
-													className={`text-xs font-semibold capitalize sm:text-sm ${
-														muted ? "text-zinc-500" : "text-zinc-700"
-													}`}
+													className={`text-xs font-semibold capitalize sm:text-sm ${muted ? "text-zinc-500" : "text-zinc-700"
+														}`}
 												>
 													{formatWeekday(day)}
 												</span>
 												<span
-													className={`mt-2 flex h-10 w-10 items-center justify-center rounded-full border text-lg font-semibold sm:h-11 sm:w-11 sm:text-xl ${
-														selected
+													className={`mt-2 flex h-10 w-10 items-center justify-center rounded-full border text-lg font-semibold sm:h-11 sm:w-11 sm:text-xl ${selected
 															? "day-selected-pop border-zinc-900 bg-zinc-900 text-white shadow-sm"
 															: muted
 																? "border-zinc-300 bg-transparent text-zinc-500"
 																: "border-zinc-300 bg-white text-zinc-800"
-													}`}
+														}`}
 												>
 													{formatDayNumber(day)}
 												</span>
@@ -327,11 +347,10 @@ export default function PrenotaPage() {
 											key={slot}
 											type="button"
 											onClick={() => setSelectedSlot(slot)}
-											className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-												selectedSlot === slot
+											className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${selectedSlot === slot
 													? "border-zinc-900 bg-zinc-900 text-white"
 													: "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100"
-											}`}
+												}`}
 										>
 											{slot}
 										</button>
@@ -344,11 +363,110 @@ export default function PrenotaPage() {
 							<button
 								type="button"
 								disabled={!selectedSlot}
+								onClick={() => setShowDetailsForm(true)}
 								className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500"
 							>
 								Continua
 							</button>
 						</div>
+
+						{showDetailsForm && selectedSlot && (
+							<form
+								ref={detailsFormRef}
+								className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 sm:p-5"
+								onSubmit={(event) => event.preventDefault()}
+							>
+								<h2 className="text-base font-semibold text-zinc-900 sm:text-lg">
+									I tuoi dati
+								</h2>
+								<p className="mt-1 text-sm text-zinc-600">
+									Compila i campi per completare la richiesta di prenotazione.
+								</p>
+
+								<div className="mt-4 rounded-xl border border-zinc-200 bg-white p-3 text-sm text-zinc-700">
+									<div>
+										<span className="font-semibold text-zinc-900">Servizio:</span>{" "}
+										{selectedService ?? "Non specificato"}
+									</div>
+									<div>
+										<span className="font-semibold text-zinc-900">Operatore:</span>{" "}
+										{operators.find((operator) => operator.id === selectedOperator)?.name}
+									</div>
+									<div>
+										<span className="font-semibold text-zinc-900">Data:</span>{" "}
+										{formatFullDate(selectedDate)}
+									</div>
+									<div>
+										<span className="font-semibold text-zinc-900">Orario:</span>{" "}
+										{selectedSlot}
+									</div>
+								</div>
+
+								<div className="mt-4 grid gap-4">
+									<div>
+										<label
+											htmlFor="fullName"
+											className="mb-1.5 block text-sm font-semibold text-zinc-900"
+										>
+											Nome completo
+										</label>
+										<input
+											id="fullName"
+											type="text"
+											required
+											value={fullName}
+											onChange={(event) => setFullName(event.target.value)}
+											placeholder="Mario Rossi"
+											className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-zinc-900"
+										/>
+									</div>
+
+									<div>
+										<label
+											htmlFor="email"
+											className="mb-1.5 block text-sm font-semibold text-zinc-900"
+										>
+											Email
+										</label>
+										<input
+											id="email"
+											type="email"
+											required
+											value={email}
+											onChange={(event) => setEmail(event.target.value)}
+											placeholder="nome@email.it"
+											className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-zinc-900"
+										/>
+									</div>
+
+									<div>
+										<label
+											htmlFor="phone"
+											className="mb-1.5 block text-sm font-semibold text-zinc-900"
+										>
+											Numero di telefono
+										</label>
+										<input
+											id="phone"
+											type="tel"
+											required
+											value={phone}
+											onChange={(event) => setPhone(event.target.value)}
+											placeholder="+39 333 123 4567"
+											className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-zinc-900"
+										/>
+									</div>
+								</div>
+
+								<button
+									type="submit"
+									disabled={!isRequestFormValid}
+									className="mt-5 w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500"
+								>
+									Invia richiesta
+								</button>
+							</form>
+						)}
 					</div>
 				</section>
 			</main>
