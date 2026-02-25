@@ -39,7 +39,7 @@ export default function Home() {
 								Prenota un servizio
 							</a>
 							<a
-								href="/service#contattaci"
+								href="/aboutUs#contattaci"
 								className="inline-flex w-fit items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-medium text-white backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-6 sm:py-3"
 							>
 								Contattaci
