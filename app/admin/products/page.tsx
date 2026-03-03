@@ -1,0 +1,30 @@
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+export default function AdminProductsPage() {
+	return (
+		<section className="space-y-6">
+			<header className="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<h1 className="text-2xl font-semibold text-zinc-900">Prodotti</h1>
+					<p className="mt-1 text-sm text-zinc-600">
+						Gestisci i prodotti del salone da questa sezione.
+					</p>
+				</div>
+				<Button>Aggiungi Prodotto</Button>
+			</header>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Lista Prodotti</CardTitle>
+					<CardDescription>
+						Collega questa tabella al database per mostrare i prodotti reali.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-zinc-600">Nessun prodotto disponibile.</p>
+				</CardContent>
+			</Card>
+		</section>
+	);
+}
