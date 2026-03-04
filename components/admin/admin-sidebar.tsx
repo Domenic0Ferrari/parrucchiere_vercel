@@ -2,33 +2,24 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-	ChevronsLeft,
-	ChevronsRight,
-	LayoutDashboard,
-	LogOut,
-	Package,
-	X,
-} from "lucide-react";
+import { LayoutDashboard, LogOut, Package, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const menuItems = [
 	{ href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-	{ href: "/admin/products", label: "Prodotti", icon: Package },
+	{ href: "/admin/services", label: "Servizi", icon: Package },
 ];
 
 type AdminSidebarProps = {
 	collapsed?: boolean;
-	onToggleCollapsed?: () => void;
 	isMobile?: boolean;
 	onCloseMobile?: () => void;
 };
 
 export default function AdminSidebar({
 	collapsed = false,
-	onToggleCollapsed,
 	isMobile = false,
 	onCloseMobile,
 }: AdminSidebarProps) {
@@ -43,7 +34,7 @@ export default function AdminSidebar({
 	};
 
 	return (
-		<aside className="flex h-full w-full flex-col overflow-hidden border-r border-zinc-200 bg-white">
+		<aside className="flex h-full w-full flex-col overflow-hidden bg-white">
 			<div className="border-b border-zinc-200 px-4 py-4">
 				<div
 					className={cn(
@@ -51,11 +42,13 @@ export default function AdminSidebar({
 						collapsed && !isMobile ? "justify-center" : "justify-between"
 					)}
 				>
-					<div className={cn(collapsed && !isMobile ? "hidden" : "block")}>
+					<div className={cn(collapsed && !isMobile ? "text-center" : "block")}>
 						<p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-							Admin Panel
+							{collapsed && !isMobile ? "AP" : "Admin Panel"}
 						</p>
-						<h2 className="mt-1 text-lg font-semibold text-zinc-900">Parrucchiere</h2>
+						{collapsed && !isMobile ? null : (
+							<h2 className="mt-1 text-lg font-semibold text-zinc-900">Parrucchiere</h2>
+						)}
 					</div>
 
 					{isMobile ? (
@@ -68,21 +61,7 @@ export default function AdminSidebar({
 						>
 							<X className="h-4 w-4" />
 						</Button>
-					) : (
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon"
-							aria-label={collapsed ? "Espandi sidebar" : "Comprimi sidebar"}
-							onClick={onToggleCollapsed}
-						>
-							{collapsed ? (
-								<ChevronsRight className="h-4 w-4" />
-							) : (
-								<ChevronsLeft className="h-4 w-4" />
-							)}
-						</Button>
-					)}
+					) : null}
 				</div>
 			</div>
 
