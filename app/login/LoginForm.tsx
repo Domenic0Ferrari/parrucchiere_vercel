@@ -55,7 +55,6 @@ export default function OwnerLoginForm() {
 
 		const hasFieldErrors = Boolean(fieldErrors.email || fieldErrors.password);
 		if (!message && !hasFieldErrors) {
-			setStatus("idle");
 			return;
 		}
 
