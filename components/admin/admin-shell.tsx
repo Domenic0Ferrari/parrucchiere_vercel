@@ -41,7 +41,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
 					<AdminSidebar collapsed={!desktopExpanded} />
 				</div>
 
-				<main className="h-full overflow-y-auto">
+				<main className="h-full overflow-y-auto md:ml-20">
 					<div className="p-6 sm:p-8">{children}</div>
 				</main>
 
