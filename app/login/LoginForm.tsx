@@ -215,11 +215,7 @@ export default function OwnerLoginForm() {
 				</button>
 
 				{message && status !== "error" ? (
-					<p
-						className={`text-sm ${
-							status === "error" ? "text-red-600" : "text-emerald-600"
-						}`}
-					>
+					<p className="text-sm text-emerald-600">
 						{message}
 					</p>
 				) : null}
