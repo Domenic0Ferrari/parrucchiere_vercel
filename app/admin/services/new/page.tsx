@@ -119,7 +119,7 @@ export default function NewAdminServicePage() {
 				name: normalizedName,
 				description: normalizedDescription,
 				duration: durationNumber,
-				cost: costNumber,
+				price: costNumber,
 			});
 
 			let saved = false;
