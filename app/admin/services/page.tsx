@@ -1,11 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ServicesCards } from "@/components/admin/services-cards";
+import { ServicesTable } from "@/components/admin/services-table";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
 type RawService = Record<string, unknown>;
 
-type ServiceItem = {
+export type ServiceItem = {
 	id: string;
 	name: string;
 	description: string | null;
@@ -97,27 +99,10 @@ export default async function AdminServicesPage() {
 					) : services.length === 0 ? (
 						<p className="text-sm text-zinc-600">Nessun servizio disponibile.</p>
 					) : (
-						<ul className="space-y-3">
-							{services.map((service) => (
-								<li
-									key={service.id}
-									className="rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700"
-								>
-									<p className="font-semibold text-zinc-900">{service.name}</p>
-									{service.description ? (
-										<p className="mt-1 text-zinc-600">{service.description}</p>
-									) : null}
-									<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-zinc-600">
-										{service.price !== null ? (
-											<span>Prezzo: EUR {service.price.toFixed(2)}</span>
-										) : null}
-										{service.durationMinutes !== null ? (
-											<span>Durata: {service.durationMinutes} min</span>
-										) : null}
-									</div>
-								</li>
-							))}
-						</ul>
+						<>
+							<ServicesTable services={services} />
+							<ServicesCards services={services} />
+						</>
 					)}
 				</CardContent>
 			</Card>
