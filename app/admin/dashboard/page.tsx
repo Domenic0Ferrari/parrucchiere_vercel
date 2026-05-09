@@ -23,16 +23,6 @@ export default function AdminDashboardPage() {
 
 				<Card>
 					<CardHeader>
-						<CardTitle>Clienti Nuovi</CardTitle>
-						<CardDescription>Registrazioni ultime 24 ore</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<p className="text-3xl font-bold text-zinc-900">0</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader>
 						<CardTitle>Prodotti in Catalogo</CardTitle>
 						<CardDescription>Gestione inventario online</CardDescription>
 					</CardHeader>

@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.2.6",
+    "@schedule-x/calendar": "^4.5.0",
+    "@schedule-x/react": "^4.1.0",
+    "@schedule-x/theme-default": "^4.5.0",
     "@supabase/supabase-js": "^2.98.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.575.0",
