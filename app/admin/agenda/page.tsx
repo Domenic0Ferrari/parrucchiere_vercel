@@ -1,11 +1,13 @@
 "use client";
 
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { createCalendar, viewDay, viewMonthGrid, viewWeek } from "@schedule-x/calendar";
 import { ScheduleXCalendar } from "@schedule-x/react";
 import "@schedule-x/theme-default/dist/index.css";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type AppointmentRow = {
 	id: string;
@@ -30,6 +32,10 @@ function toZonedDateTime(value: string) {
 function toInputDateTime(value: string) {
 	const zdt = toZonedDateTime(value);
 	return `${zdt.toPlainDate().toString()}T${zdt.toPlainTime().toString({ smallestUnit: "minute" })}`;
+}
+
+function toHourMinute(value: string) {
+	return toZonedDateTime(value).toPlainTime().toString({ smallestUnit: "minute" });
 }
 
 const initialAppointments: AppointmentRow[] = [
@@ -57,34 +63,53 @@ export default function AdminAgendaPage() {
 	const [appointments, setAppointments] = useState<AppointmentRow[]>(initialAppointments);
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [loggedOperatorName, setLoggedOperatorName] = useState("");
 
 	const [customerName, setCustomerName] = useState("");
 	const [serviceName, setServiceName] = useState("");
-	const [operatorName, setOperatorName] = useState("");
 	const [startAt, setStartAt] = useState("");
 	const [endAt, setEndAt] = useState("");
 	const [notes, setNotes] = useState("");
 	const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 	const [editCustomerName, setEditCustomerName] = useState("");
 	const [editServiceName, setEditServiceName] = useState("");
-	const [editOperatorName, setEditOperatorName] = useState("");
 	const [editStartAt, setEditStartAt] = useState("");
 	const [editEndAt, setEditEndAt] = useState("");
 	const [editNotes, setEditNotes] = useState("");
+	const [calendarView, setCalendarView] = useState(viewDay.name);
+
+	useEffect(() => {
+		const loadLoggedOperator = async () => {
+			const supabase = getSupabaseBrowserClient();
+			const { data } = await supabase.auth.getSession();
+			const user = data.session?.user;
+			if (!user) return;
+
+			const fullName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
+			const name = typeof user.user_metadata?.name === "string" ? user.user_metadata.name : "";
+			const emailLocalPart = user.email?.split("@")[0] ?? "";
+			setLoggedOperatorName((fullName || name || emailLocalPart).trim());
+		};
+
+		void loadLoggedOperator();
+	}, []);
 
 	const calendarEvents = useMemo(
 		() =>
-			appointments.map((item) => ({
-				id: item.id,
-				title: `${item.service_name} - ${item.customer_name}`,
-				start: toZonedDateTime(item.start_at),
-				end: toZonedDateTime(item.end_at),
-				description: item.notes ?? "",
-				_customContent: {
-					timeGrid: item.notes ? `Note: ${item.notes}` : undefined,
-					monthGrid: item.notes ? `Note: ${item.notes}` : undefined,
-				},
-			})),
+			appointments.map((item) => {
+				const baseText = `${item.customer_name}\n${toHourMinute(item.start_at)}-${toHourMinute(item.end_at)} | ${item.service_name}`;
+				return {
+					id: item.id,
+					title: baseText,
+					start: toZonedDateTime(item.start_at),
+					end: toZonedDateTime(item.end_at),
+					description: item.notes ?? "",
+					_customContent: {
+						timeGrid: item.notes ? `${baseText}\nn: ${item.notes}` : baseText,
+						monthGrid: item.notes ? `${baseText}\nn: ${item.notes}` : baseText,
+					},
+				};
+			}),
 		[appointments]
 	);
 
@@ -93,6 +118,7 @@ export default function AdminAgendaPage() {
 		if (!first) return Temporal.Now.plainDateISO();
 		return toZonedDateTime(first).toPlainDate();
 	}, [appointments]);
+	const [calendarDate, setCalendarDate] = useState(selectedDate.toString());
 	const selectedAppointment = useMemo(
 		() => appointments.find((item) => item.id === selectedAppointmentId) ?? null,
 		[appointments, selectedAppointmentId]
@@ -103,9 +129,13 @@ export default function AdminAgendaPage() {
 			createCalendar({
 				locale: "it-IT",
 				timezone: TIME_ZONE,
+				dayBoundaries: {
+					start: "08:00",
+					end: "20:00",
+				},
 				views: [viewDay, viewWeek, viewMonthGrid],
-				defaultView: viewWeek.name,
-				selectedDate,
+				defaultView: calendarView,
+				selectedDate: Temporal.PlainDate.from(calendarDate),
 				events: calendarEvents,
 				callbacks: {
 					onEventClick: (event) => {
@@ -115,15 +145,39 @@ export default function AdminAgendaPage() {
 						setSelectedAppointmentId(eventId);
 						setEditCustomerName(current.customer_name);
 						setEditServiceName(current.service_name);
-						setEditOperatorName(current.operator_name ?? "");
 						setEditStartAt(toInputDateTime(current.start_at));
 						setEditEndAt(toInputDateTime(current.end_at));
 						setEditNotes(current.notes ?? "");
 					},
 				},
 			}),
-		[appointments, calendarEvents, selectedDate]
+		[appointments, calendarDate, calendarEvents, calendarView]
 	);
+
+	const changeCalendarView = (nextView: string) => {
+		setCalendarView(nextView);
+		const api = (calendar as unknown as { $app?: { calendarState?: { setView: (view: string, date: Temporal.PlainDate) => void } } }).$app?.calendarState;
+		if (!api) return;
+		api.setView(nextView, Temporal.PlainDate.from(calendarDate));
+	};
+
+	const changeCalendarDate = (nextDate: string) => {
+		setCalendarDate(nextDate);
+		const api = (calendar as unknown as { $app?: { calendarState?: { setView: (view: string, date: Temporal.PlainDate) => void } } }).$app?.calendarState;
+		if (!api) return;
+		api.setView(calendarView, Temporal.PlainDate.from(nextDate));
+	};
+
+	const moveCalendarDate = (direction: -1 | 1) => {
+		const date = Temporal.PlainDate.from(calendarDate);
+		const nextDate =
+			calendarView === viewMonthGrid.name
+				? date.add({ months: direction })
+				: calendarView === viewWeek.name
+					? date.add({ days: 7 * direction })
+					: date.add({ days: direction });
+		changeCalendarDate(nextDate.toString());
+	};
 
 	const onCreateAppointment = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -145,7 +199,7 @@ export default function AdminAgendaPage() {
 					id: crypto.randomUUID(),
 					customer_name: customerName.trim(),
 					service_name: serviceName.trim(),
-					operator_name: operatorName.trim() || null,
+					operator_name: loggedOperatorName || null,
 					start_at: start.toString(),
 					end_at: end.toString(),
 					notes: notes.trim() || null,
@@ -154,7 +208,6 @@ export default function AdminAgendaPage() {
 
 			setCustomerName("");
 			setServiceName("");
-			setOperatorName("");
 			setStartAt("");
 			setEndAt("");
 			setNotes("");
@@ -192,7 +245,7 @@ export default function AdminAgendaPage() {
 							...item,
 							customer_name: editCustomerName.trim(),
 							service_name: editServiceName.trim(),
-							operator_name: editOperatorName.trim() || null,
+							operator_name: loggedOperatorName || null,
 							start_at: start.toString(),
 							end_at: end.toString(),
 							notes: editNotes.trim() || null,
@@ -211,26 +264,68 @@ export default function AdminAgendaPage() {
 
 	return (
 		<section className="space-y-6">
+			{error ? <p className="text-sm text-red-600">{error}</p> : null}
+
 			<header>
-				<h1 className="text-2xl font-semibold text-zinc-900">Agenda</h1>
+				<h1 className="text-2xl font-semibold text-zinc-900">Calendario</h1>
 				<p className="mt-1 text-sm text-zinc-600">
-					Gestione locale appuntamenti: aggiungi, cancella e salva note (senza database).
+				Modalita locale temporanea
 				</p>
 			</header>
 
-			{error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-			<Card>
-				<CardHeader>
-					<CardTitle>Calendario appuntamenti</CardTitle>
-					<CardDescription>Modalita locale temporanea, dati non persistenti al refresh.</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="sx-react-calendar-wrapper overflow-hidden rounded-md border border-zinc-200">
-						<ScheduleXCalendar calendarApp={calendar} />
+			<div className="sx-react-calendar-wrapper overflow-hidden rounded-md border border-zinc-200">
+				<div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white p-3">
+					<div className="flex items-center gap-2">
+						<Button type="button" variant="outline" className="cursor-pointer" onClick={() => moveCalendarDate(-1)}>
+							Indietro
+						</Button>
+						<Button type="button" variant="outline" className="cursor-pointer" onClick={() => moveCalendarDate(1)}>
+							Avanti
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							className="cursor-pointer"
+							onClick={() => changeCalendarDate(Temporal.Now.plainDateISO().toString())}
+						>
+							Oggi
+						</Button>
 					</div>
-				</CardContent>
-			</Card>
+					<input
+						type="date"
+						value={calendarDate}
+						onChange={(e) => changeCalendarDate(e.target.value)}
+						className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+					/>
+					<div className="ml-auto flex items-center gap-2">
+						<Button
+							type="button"
+							variant={calendarView === viewDay.name ? "default" : "outline"}
+							className="cursor-pointer"
+							onClick={() => changeCalendarView(viewDay.name)}
+						>
+							Giorno
+						</Button>
+						<Button
+							type="button"
+							variant={calendarView === viewWeek.name ? "default" : "outline"}
+							className="cursor-pointer"
+							onClick={() => changeCalendarView(viewWeek.name)}
+						>
+							Settimana
+						</Button>
+						<Button
+							type="button"
+							variant={calendarView === viewMonthGrid.name ? "default" : "outline"}
+							className="cursor-pointer"
+							onClick={() => changeCalendarView(viewMonthGrid.name)}
+						>
+							Mese
+						</Button>
+					</div>
+				</div>
+				<ScheduleXCalendar calendarApp={calendar} />
+			</div>
 
 			<Card>
 				<CardHeader>
@@ -240,7 +335,7 @@ export default function AdminAgendaPage() {
 					<form onSubmit={onCreateAppointment} className="grid gap-3 md:grid-cols-2">
 						<input required value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Cliente" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" />
 						<input required value={serviceName} onChange={(e) => setServiceName(e.target.value)} placeholder="Servizio" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-						<input value={operatorName} onChange={(e) => setOperatorName(e.target.value)} placeholder="Operatore" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+						<input value={loggedOperatorName} readOnly placeholder="Operatore loggato" className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm text-zinc-700" />
 						<input required type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} className="rounded-md border border-zinc-300 px-3 py-2 text-sm" />
 						<input required type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} className="rounded-md border border-zinc-300 px-3 py-2 text-sm" />
 						<input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note" className="rounded-md border border-zinc-300 px-3 py-2 text-sm" />
@@ -281,15 +376,22 @@ export default function AdminAgendaPage() {
 								<h2 className="text-lg font-semibold text-zinc-900">Dettaglio prenotazione</h2>
 								<p className="text-sm text-zinc-600">Modifica i dati e salva le variazioni.</p>
 							</div>
-							<Button type="button" variant="ghost" onClick={() => setSelectedAppointmentId(null)}>
-								Chiudi
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								aria-label="Chiudi modale"
+								className="cursor-pointer text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+								onClick={() => setSelectedAppointmentId(null)}
+							>
+								<X className="h-5 w-5" />
 							</Button>
 						</div>
 
 						<div className="grid gap-3 md:grid-cols-2">
 							<input value={editCustomerName} onChange={(e) => setEditCustomerName(e.target.value)} placeholder="Cliente" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500" />
 							<input value={editServiceName} onChange={(e) => setEditServiceName(e.target.value)} placeholder="Servizio" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500" />
-							<input value={editOperatorName} onChange={(e) => setEditOperatorName(e.target.value)} placeholder="Operatore" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500" />
+							<input value={loggedOperatorName} readOnly placeholder="Operatore loggato" className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm text-zinc-700" />
 							<input type="datetime-local" value={editStartAt} onChange={(e) => setEditStartAt(e.target.value)} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900" />
 							<input type="datetime-local" value={editEndAt} onChange={(e) => setEditEndAt(e.target.value)} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900" />
 							<input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Note" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500" />
@@ -306,6 +408,15 @@ export default function AdminAgendaPage() {
 					</div>
 				</div>
 			) : null}
+
+			<style jsx global>{`
+				.sx-react-calendar-wrapper .sx__event {
+					white-space: pre-line !important;
+				}
+				.sx-react-calendar-wrapper .sx__calendar-header {
+					display: none !important;
+				}
+			`}</style>
 		</section>
 	);
 }
