@@ -76,7 +76,7 @@ export default function AdminAgendaPage() {
 	const [editStartAt, setEditStartAt] = useState("");
 	const [editEndAt, setEditEndAt] = useState("");
 	const [editNotes, setEditNotes] = useState("");
-	const [calendarView, setCalendarView] = useState(viewDay.name);
+	const [calendarView, setCalendarView] = useState(viewWeek.name);
 
 	useEffect(() => {
 		const loadLoggedOperator = async () => {
@@ -263,18 +263,15 @@ export default function AdminAgendaPage() {
 	};
 
 	return (
-		<section className="space-y-6">
+		<section className="-mt-4 space-y-3">
 			{error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-			<header>
+			<header className="space-y-0.5">
 				<h1 className="text-2xl font-semibold text-zinc-900">Calendario</h1>
-				<p className="mt-1 text-sm text-zinc-600">
-				Modalita locale temporanea
-				</p>
 			</header>
 
-			<div className="sx-react-calendar-wrapper overflow-hidden rounded-md border border-zinc-200">
-				<div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white p-3">
+			<div className="sx-react-calendar-wrapper overflow-hidden rounded-md border border-zinc-200 lg:h-[calc(100dvh-8.5rem)]">
+				<div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-3 py-2">
 					<div className="flex items-center gap-2">
 						<Button type="button" variant="outline" className="cursor-pointer" onClick={() => moveCalendarDate(-1)}>
 							Indietro
@@ -415,6 +412,21 @@ export default function AdminAgendaPage() {
 				}
 				.sx-react-calendar-wrapper .sx__calendar-header {
 					display: none !important;
+				}
+				@media (min-width: 1024px) {
+					.sx-react-calendar-wrapper {
+						--sx-week-grid-hour-height: 38px;
+						--sx-week-grid-height: 408px;
+					}
+					.sx-react-calendar-wrapper .sx__calendar {
+						height: 100%;
+					}
+					.sx-react-calendar-wrapper .sx__week-grid__hour {
+						height: 38px !important;
+					}
+					.sx-react-calendar-wrapper .sx__week-grid {
+						height: 408px !important;
+					}
 				}
 			`}</style>
 		</section>
