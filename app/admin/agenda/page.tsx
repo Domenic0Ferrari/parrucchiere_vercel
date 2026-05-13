@@ -124,8 +124,8 @@ export default function AdminAgendaPage() {
 		locale: "it-IT",
 		timeZone: TIME_ZONE,
 		views: [
-			createDayView({ firstHour: 8, lastHour: 20 }),
-			createWeekView({ firstHour: 8, lastHour: 20, startOfWeek: 1 }),
+			createDayView({ firstHour: 8, lastHour: 20, showAllDay: false }),
+			createWeekView({ firstHour: 8, lastHour: 20, startOfWeek: 1, showAllDay: false }),
 			createMonthView(),
 		],
 		defaultView: ViewType.WEEK,
