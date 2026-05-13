@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Temporal } from "temporal-polyfill";
 import { createDayView, createMonthView, createWeekView, DayFlowCalendar, useCalendarApp, ViewType } from "@dayflow/react";
 import "@dayflow/core/dist/styles.components.css";
 import { X } from "lucide-react";
@@ -75,7 +76,7 @@ export default function AdminAgendaPage() {
 	const [editStartAt, setEditStartAt] = useState("");
 	const [editEndAt, setEditEndAt] = useState("");
 	const [editNotes, setEditNotes] = useState("");
-	const [calendarView, setCalendarView] = useState(ViewType.WEEK);
+	const [calendarView, setCalendarView] = useState<string>(ViewType.WEEK);
 
 	useEffect(() => {
 		const loadLoggedOperator = async () => {
