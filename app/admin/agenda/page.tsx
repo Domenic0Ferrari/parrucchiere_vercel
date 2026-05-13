@@ -1,12 +1,11 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { createCalendar, viewDay, viewMonthGrid, viewWeek } from "@schedule-x/calendar";
-import { ScheduleXCalendar } from "@schedule-x/react";
-import "@schedule-x/theme-default/dist/index.css";
+import { createDayView, createMonthView, createWeekView, DayFlowCalendar, useCalendarApp, ViewType } from "@dayflow/react";
+import "@dayflow/core/dist/styles.components.css";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type AppointmentRow = {
@@ -76,7 +75,7 @@ export default function AdminAgendaPage() {
 	const [editStartAt, setEditStartAt] = useState("");
 	const [editEndAt, setEditEndAt] = useState("");
 	const [editNotes, setEditNotes] = useState("");
-	const [calendarView, setCalendarView] = useState(viewWeek.name);
+	const [calendarView, setCalendarView] = useState(ViewType.WEEK);
 
 	useEffect(() => {
 		const loadLoggedOperator = async () => {
@@ -104,10 +103,6 @@ export default function AdminAgendaPage() {
 					start: toZonedDateTime(item.start_at),
 					end: toZonedDateTime(item.end_at),
 					description: item.notes ?? "",
-					_customContent: {
-						timeGrid: item.notes ? `${baseText}\nn: ${item.notes}` : baseText,
-						monthGrid: item.notes ? `${baseText}\nn: ${item.notes}` : baseText,
-					},
 				};
 			}),
 		[appointments]
@@ -124,59 +119,57 @@ export default function AdminAgendaPage() {
 		[appointments, selectedAppointmentId]
 	);
 
-	const calendar = useMemo(
-		() =>
-			createCalendar({
-				locale: "it-IT",
-				timezone: TIME_ZONE,
-				dayBoundaries: {
-					start: "08:00",
-					end: "20:00",
-				},
-				views: [viewDay, viewWeek, viewMonthGrid],
-				defaultView: calendarView,
-				selectedDate: Temporal.PlainDate.from(calendarDate),
-				events: calendarEvents,
-				callbacks: {
-					onEventClick: (event) => {
-						const eventId = String(event.id);
-						const current = appointments.find((item) => item.id === eventId);
-						if (!current) return;
-						setSelectedAppointmentId(eventId);
-						setEditCustomerName(current.customer_name);
-						setEditServiceName(current.service_name);
-						setEditStartAt(toInputDateTime(current.start_at));
-						setEditEndAt(toInputDateTime(current.end_at));
-						setEditNotes(current.notes ?? "");
-					},
-				},
-			}),
-		[appointments, calendarDate, calendarEvents, calendarView]
-	);
+	const calendar = useCalendarApp({
+		locale: "it-IT",
+		timeZone: TIME_ZONE,
+		views: [
+			createDayView({ firstHour: 8, lastHour: 20 }),
+			createWeekView({ firstHour: 8, lastHour: 20, startOfWeek: 1 }),
+			createMonthView(),
+		],
+		defaultView: ViewType.WEEK,
+		initialDate: new Date(`${calendarDate}T00:00:00`),
+		events: calendarEvents,
+		useCalendarHeader: false,
+		callbacks: {
+			onDateChange: (date) => {
+				const next = Temporal.Instant.fromEpochMilliseconds(date.getTime()).toZonedDateTimeISO(TIME_ZONE).toPlainDate().toString();
+				setCalendarDate(next);
+			},
+			onViewChange: (view) => {
+				setCalendarView(view);
+			},
+			onEventClick: (event) => {
+				const eventId = String(event.id);
+				const current = appointments.find((item) => item.id === eventId);
+				if (!current) return;
+				setSelectedAppointmentId(eventId);
+				setEditCustomerName(current.customer_name);
+				setEditServiceName(current.service_name);
+				setEditStartAt(toInputDateTime(current.start_at));
+				setEditEndAt(toInputDateTime(current.end_at));
+				setEditNotes(current.notes ?? "");
+			},
+		},
+	});
 
 	const changeCalendarView = (nextView: string) => {
-		setCalendarView(nextView);
-		const api = (calendar as unknown as { $app?: { calendarState?: { setView: (view: string, date: Temporal.PlainDate) => void } } }).$app?.calendarState;
-		if (!api) return;
-		api.setView(nextView, Temporal.PlainDate.from(calendarDate));
+		const mappedView = nextView as ViewType;
+		setCalendarView(mappedView);
+		calendar.changeView(mappedView);
 	};
 
 	const changeCalendarDate = (nextDate: string) => {
 		setCalendarDate(nextDate);
-		const api = (calendar as unknown as { $app?: { calendarState?: { setView: (view: string, date: Temporal.PlainDate) => void } } }).$app?.calendarState;
-		if (!api) return;
-		api.setView(calendarView, Temporal.PlainDate.from(nextDate));
+		calendar.selectDate(new Date(`${nextDate}T00:00:00`));
 	};
 
 	const moveCalendarDate = (direction: -1 | 1) => {
-		const date = Temporal.PlainDate.from(calendarDate);
-		const nextDate =
-			calendarView === viewMonthGrid.name
-				? date.add({ months: direction })
-				: calendarView === viewWeek.name
-					? date.add({ days: 7 * direction })
-					: date.add({ days: direction });
-		changeCalendarDate(nextDate.toString());
+		if (direction === -1) {
+			calendar.goToPrevious();
+			return;
+		}
+		calendar.goToNext();
 	};
 
 	const onCreateAppointment = (event: FormEvent<HTMLFormElement>) => {
@@ -270,7 +263,7 @@ export default function AdminAgendaPage() {
 				<h1 className="text-2xl font-semibold text-zinc-900">Calendario</h1>
 			</header>
 
-			<div className="sx-react-calendar-wrapper overflow-hidden rounded-md border border-zinc-200 lg:h-[calc(100dvh-8.5rem)]">
+			<div className="overflow-hidden rounded-md border border-zinc-200 lg:h-[calc(100dvh-8.5rem)]">
 				<div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-3 py-2">
 					<div className="flex items-center gap-2">
 						<Button type="button" variant="outline" className="cursor-pointer" onClick={() => moveCalendarDate(-1)}>
@@ -297,31 +290,33 @@ export default function AdminAgendaPage() {
 					<div className="ml-auto flex items-center gap-2">
 						<Button
 							type="button"
-							variant={calendarView === viewDay.name ? "default" : "outline"}
+							variant={calendarView === ViewType.DAY ? "default" : "outline"}
 							className="cursor-pointer"
-							onClick={() => changeCalendarView(viewDay.name)}
+							onClick={() => changeCalendarView(ViewType.DAY)}
 						>
 							Giorno
 						</Button>
 						<Button
 							type="button"
-							variant={calendarView === viewWeek.name ? "default" : "outline"}
+							variant={calendarView === ViewType.WEEK ? "default" : "outline"}
 							className="cursor-pointer"
-							onClick={() => changeCalendarView(viewWeek.name)}
+							onClick={() => changeCalendarView(ViewType.WEEK)}
 						>
 							Settimana
 						</Button>
 						<Button
 							type="button"
-							variant={calendarView === viewMonthGrid.name ? "default" : "outline"}
+							variant={calendarView === ViewType.MONTH ? "default" : "outline"}
 							className="cursor-pointer"
-							onClick={() => changeCalendarView(viewMonthGrid.name)}
+							onClick={() => changeCalendarView(ViewType.MONTH)}
 						>
 							Mese
 						</Button>
 					</div>
 				</div>
-				<ScheduleXCalendar calendarApp={calendar} />
+				<div className="h-[600px] lg:h-full">
+					<DayFlowCalendar calendar={calendar} />
+				</div>
 			</div>
 
 			<Card>
@@ -407,26 +402,8 @@ export default function AdminAgendaPage() {
 			) : null}
 
 			<style jsx global>{`
-				.sx-react-calendar-wrapper .sx__event {
+				.df-event {
 					white-space: pre-line !important;
-				}
-				.sx-react-calendar-wrapper .sx__calendar-header {
-					display: none !important;
-				}
-				@media (min-width: 1024px) {
-					.sx-react-calendar-wrapper {
-						--sx-week-grid-hour-height: 38px;
-						--sx-week-grid-height: 408px;
-					}
-					.sx-react-calendar-wrapper .sx__calendar {
-						height: 100%;
-					}
-					.sx-react-calendar-wrapper .sx__week-grid__hour {
-						height: 38px !important;
-					}
-					.sx-react-calendar-wrapper .sx__week-grid {
-						height: 408px !important;
-					}
 				}
 			`}</style>
 		</section>
