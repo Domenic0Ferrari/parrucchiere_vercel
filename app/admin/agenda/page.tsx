@@ -20,6 +20,9 @@ type AppointmentRow = {
 };
 
 const TIME_ZONE = "Europe/Rome";
+const AGENDA_START_HOUR = 8;
+const AGENDA_END_HOUR = 20;
+const AGENDA_VISIBLE_HOURS = AGENDA_END_HOUR - AGENDA_START_HOUR;
 
 function toZonedDateTime(value: string) {
 	if (value.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(value)) {
@@ -36,6 +39,13 @@ function toInputDateTime(value: string) {
 
 function toHourMinute(value: string) {
 	return toZonedDateTime(value).toPlainTime().toString({ smallestUnit: "minute" });
+}
+
+function isWithinAgendaHours(start: Temporal.PlainDateTime, end: Temporal.PlainDateTime) {
+	const agendaStart = Temporal.PlainTime.from({ hour: AGENDA_START_HOUR });
+	const agendaEnd = Temporal.PlainTime.from({ hour: AGENDA_END_HOUR });
+	return Temporal.PlainTime.compare(start.toPlainTime(), agendaStart) >= 0
+		&& Temporal.PlainTime.compare(end.toPlainTime(), agendaEnd) <= 0;
 }
 
 const initialAppointments: AppointmentRow[] = [
@@ -124,8 +134,21 @@ export default function AdminAgendaPage() {
 		locale: "it-IT",
 		timeZone: TIME_ZONE,
 		views: [
-			createDayView({ firstHour: 8, lastHour: 20, showAllDay: false }),
-			createWeekView({ firstHour: 8, lastHour: 20, startOfWeek: 1, showAllDay: false }),
+			createDayView({
+				firstHour: AGENDA_START_HOUR,
+				lastHour: AGENDA_VISIBLE_HOURS,
+				showAllDay: false,
+				hourHeight: 64,
+				scrollToCurrentTime: false,
+			}),
+			createWeekView({
+				firstHour: AGENDA_START_HOUR,
+				lastHour: AGENDA_VISIBLE_HOURS,
+				startOfWeek: 1,
+				showAllDay: false,
+				hourHeight: 64,
+				scrollToCurrentTime: false,
+			}),
 			createMonthView(),
 		],
 		defaultView: ViewType.WEEK,
@@ -186,6 +209,11 @@ export default function AdminAgendaPage() {
 				setSaving(false);
 				return;
 			}
+			if (!isWithinAgendaHours(start, end)) {
+				setError(`Gli appuntamenti devono essere compresi tra le ${String(AGENDA_START_HOUR).padStart(2, "0")}:00 e le ${String(AGENDA_END_HOUR).padStart(2, "0")}:00.`);
+				setSaving(false);
+				return;
+			}
 
 			setAppointments((prev) => [
 				...prev,
@@ -231,6 +259,10 @@ export default function AdminAgendaPage() {
 			setError("L'orario di fine deve essere successivo all'orario di inizio.");
 			return;
 		}
+		if (!isWithinAgendaHours(start, end)) {
+			setError(`Gli appuntamenti devono essere compresi tra le ${String(AGENDA_START_HOUR).padStart(2, "0")}:00 e le ${String(AGENDA_END_HOUR).padStart(2, "0")}:00.`);
+			return;
+		}
 
 		setAppointments((prev) =>
 			prev.map((item) =>
@@ -267,16 +299,16 @@ export default function AdminAgendaPage() {
 			<div className="overflow-hidden rounded-md border border-zinc-200 lg:h-[calc(100dvh-8.5rem)]">
 				<div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-3 py-2">
 					<div className="flex items-center gap-2">
-						<Button type="button" variant="outline" className="cursor-pointer" onClick={() => moveCalendarDate(-1)}>
+						<Button type="button" variant="outline" className="cursor-pointer text-zinc-900 hover:text-zinc-900" onClick={() => moveCalendarDate(-1)}>
 							Indietro
 						</Button>
-						<Button type="button" variant="outline" className="cursor-pointer" onClick={() => moveCalendarDate(1)}>
+						<Button type="button" variant="outline" className="cursor-pointer text-zinc-900 hover:text-zinc-900" onClick={() => moveCalendarDate(1)}>
 							Avanti
 						</Button>
 						<Button
 							type="button"
 							variant="outline"
-							className="cursor-pointer"
+							className="cursor-pointer text-zinc-900 hover:text-zinc-900"
 							onClick={() => changeCalendarDate(Temporal.Now.plainDateISO().toString())}
 						>
 							Oggi
@@ -286,29 +318,29 @@ export default function AdminAgendaPage() {
 						type="date"
 						value={calendarDate}
 						onChange={(e) => changeCalendarDate(e.target.value)}
-						className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
 					/>
 					<div className="ml-auto flex items-center gap-2">
 						<Button
 							type="button"
-							variant={calendarView === ViewType.DAY ? "default" : "outline"}
-							className="cursor-pointer"
+							variant="outline"
+							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.DAY ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
 							onClick={() => changeCalendarView(ViewType.DAY)}
 						>
 							Giorno
 						</Button>
 						<Button
 							type="button"
-							variant={calendarView === ViewType.WEEK ? "default" : "outline"}
-							className="cursor-pointer"
+							variant="outline"
+							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.WEEK ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
 							onClick={() => changeCalendarView(ViewType.WEEK)}
 						>
 							Settimana
 						</Button>
 						<Button
 							type="button"
-							variant={calendarView === ViewType.MONTH ? "default" : "outline"}
-							className="cursor-pointer"
+							variant="outline"
+							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.MONTH ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
 							onClick={() => changeCalendarView(ViewType.MONTH)}
 						>
 							Mese
@@ -403,6 +435,16 @@ export default function AdminAgendaPage() {
 			) : null}
 
 			<style jsx global>{`
+				/* Hard cap visuale 08:00-20:00: nasconde righe/etichette oltre le 20 */
+				.df-calendar-container .df-time-grid-row:nth-child(n + 14),
+				.df-calendar-container .df-time-column > *:nth-child(n + 14) {
+					display: none !important;
+				}
+
+				.df-calendar-container .df-calendar-content {
+					overflow-y: hidden !important;
+				}
+
 				.df-event {
 					white-space: pre-line !important;
 				}
