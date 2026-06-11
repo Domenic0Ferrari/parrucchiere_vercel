@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, LayoutDashboard, LogOut, Package, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { clearAdminSessionActivity } from "@/lib/admin-session-timeout";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const menuItems = [
@@ -29,6 +30,7 @@ export default function AdminSidebar({
 
 	const handleLogout = async () => {
 		const supabase = getSupabaseBrowserClient();
+		clearAdminSessionActivity();
 		await supabase.auth.signOut();
 		onCloseMobile?.();
 		router.replace("/login");

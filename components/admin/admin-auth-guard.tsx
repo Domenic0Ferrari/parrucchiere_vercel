@@ -2,6 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import {
+	clearAdminSessionActivity,
+	isAdminSessionTimedOut,
+	markAdminSessionActivity,
+} from "@/lib/admin-session-timeout";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function AdminAuthGuard({ children }: { children: ReactNode }) {
@@ -13,6 +18,24 @@ export default function AdminAuthGuard({ children }: { children: ReactNode }) {
 		const supabase = getSupabaseBrowserClient();
 
 		let mounted = true;
+		let expiringSession = false;
+
+		const redirectToLogin = () => {
+			router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+		};
+
+		const expireSession = async () => {
+			if (expiringSession) {
+				return;
+			}
+
+			expiringSession = true;
+			clearAdminSessionActivity();
+			await supabase.auth.signOut();
+			if (mounted) {
+				redirectToLogin();
+			}
+		};
 
 		const bootstrap = async () => {
 			const { data } = await supabase.auth.getSession();
@@ -21,25 +44,62 @@ export default function AdminAuthGuard({ children }: { children: ReactNode }) {
 			}
 
 			if (!data.session) {
-				router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+				redirectToLogin();
 				return;
 			}
 
+			if (isAdminSessionTimedOut()) {
+				await expireSession();
+				return;
+			}
+
+			markAdminSessionActivity();
 			setLoading(false);
 		};
 
 		void bootstrap();
 
+		const handleActivity = () => {
+			if (isAdminSessionTimedOut()) {
+				void expireSession();
+				return;
+			}
+
+			markAdminSessionActivity();
+		};
+
+		const activityEvents: Array<keyof WindowEventMap> = [
+			"click",
+			"keydown",
+			"scroll",
+			"touchstart",
+		];
+
+		activityEvents.forEach((eventName) => {
+			window.addEventListener(eventName, handleActivity, { passive: true });
+		});
+
+		const timeoutId = window.setInterval(() => {
+			if (isAdminSessionTimedOut()) {
+				void expireSession();
+			}
+		}, 60 * 1000);
+
 		const {
 			data: { subscription },
 		} = supabase.auth.onAuthStateChange((_event, session) => {
 			if (!session) {
-				router.replace("/login");
+				clearAdminSessionActivity();
+				router.replace(`/login?next=${encodeURIComponent(pathname)}`);
 			}
 		});
 
 		return () => {
 			mounted = false;
+			window.clearInterval(timeoutId);
+			activityEvents.forEach((eventName) => {
+				window.removeEventListener(eventName, handleActivity);
+			});
 			subscription.unsubscribe();
 		};
 	}, [pathname, router]);

@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import {
+	clearAdminSessionActivity,
+	isAdminSessionTimedOut,
+	markAdminSessionActivity,
+} from "@/lib/admin-session-timeout";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const ERROR_VISIBILITY_MS = 3000;
@@ -33,6 +38,14 @@ export default function OwnerLoginForm() {
 			}
 
 			if (data.session) {
+				if (isAdminSessionTimedOut()) {
+					clearAdminSessionActivity();
+					await supabase.auth.signOut();
+					setCheckingSession(false);
+					return;
+				}
+
+				markAdminSessionActivity();
 				const next = searchParams.get("next") || "/admin/dashboard";
 				router.replace(next);
 				return;
@@ -103,6 +116,7 @@ export default function OwnerLoginForm() {
 				return;
 			}
 
+			markAdminSessionActivity();
 			setStatus("success");
 			setMessage("Login effettuato con successo.");
 			const next = searchParams.get("next") || "/admin/dashboard";
