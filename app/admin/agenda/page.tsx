@@ -22,7 +22,10 @@ type AppointmentRow = {
 const TIME_ZONE = "Europe/Rome";
 const AGENDA_START_HOUR = 8;
 const AGENDA_END_HOUR = 20;
-const AGENDA_VISIBLE_HOURS = AGENDA_END_HOUR - AGENDA_START_HOUR;
+const CALENDAR_FIRST_HOUR = 0;
+const CALENDAR_LAST_HOUR = 24;
+const CALENDAR_HOUR_HEIGHT = 64;
+const CALENDAR_HOURS_COUNT = CALENDAR_LAST_HOUR - CALENDAR_FIRST_HOUR;
 
 function toZonedDateTime(value: string) {
 	if (value.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(value)) {
@@ -119,12 +122,7 @@ export default function AdminAgendaPage() {
 		[appointments]
 	);
 
-	const selectedDate = useMemo(() => {
-		const first = appointments[0]?.start_at;
-		if (!first) return Temporal.Now.plainDateISO();
-		return toZonedDateTime(first).toPlainDate();
-	}, [appointments]);
-	const [calendarDate, setCalendarDate] = useState(selectedDate.toString());
+	const [calendarDate, setCalendarDate] = useState(() => Temporal.Now.plainDateISO().toString());
 	const selectedAppointment = useMemo(
 		() => appointments.find((item) => item.id === selectedAppointmentId) ?? null,
 		[appointments, selectedAppointmentId]
@@ -135,18 +133,18 @@ export default function AdminAgendaPage() {
 		timeZone: TIME_ZONE,
 		views: [
 			createDayView({
-				firstHour: AGENDA_START_HOUR,
-				lastHour: AGENDA_VISIBLE_HOURS,
+				firstHour: CALENDAR_FIRST_HOUR,
+				lastHour: CALENDAR_LAST_HOUR,
 				showAllDay: false,
-				hourHeight: 64,
+				hourHeight: CALENDAR_HOUR_HEIGHT,
 				scrollToCurrentTime: false,
 			}),
 			createWeekView({
-				firstHour: AGENDA_START_HOUR,
-				lastHour: AGENDA_VISIBLE_HOURS,
+				firstHour: CALENDAR_FIRST_HOUR,
+				lastHour: CALENDAR_LAST_HOUR,
 				startOfWeek: 1,
 				showAllDay: false,
-				hourHeight: 64,
+				hourHeight: CALENDAR_HOUR_HEIGHT,
 				scrollToCurrentTime: false,
 			}),
 			createMonthView(),
@@ -176,6 +174,23 @@ export default function AdminAgendaPage() {
 			},
 		},
 	});
+
+	useEffect(() => {
+		if (calendarView !== ViewType.DAY && calendarView !== ViewType.WEEK) return;
+
+		const scrollToAgendaStart = () => {
+			const content = document.querySelector<HTMLElement>(
+				".df-calendar-container .df-calendar-content, .df-calendar-container .df-week-time-grid-scroller"
+			);
+			if (!content) return false;
+			content.scrollTop = (AGENDA_START_HOUR - CALENDAR_FIRST_HOUR) * CALENDAR_HOUR_HEIGHT;
+			return true;
+		};
+
+		if (scrollToAgendaStart()) return;
+		const timer = window.setTimeout(scrollToAgendaStart, 100);
+		return () => window.clearTimeout(timer);
+	}, [calendarView, calendarDate]);
 
 	const changeCalendarView = (nextView: string) => {
 		const mappedView = nextView as ViewType;
@@ -435,14 +450,21 @@ export default function AdminAgendaPage() {
 			) : null}
 
 			<style jsx global>{`
-				/* Hard cap visuale 08:00-20:00: nasconde righe/etichette oltre le 20 */
-				.df-calendar-container .df-time-grid-row:nth-child(n + 14),
-				.df-calendar-container .df-time-column > *:nth-child(n + 14) {
-					display: none !important;
+				.df-calendar-wrapper,
+				.df-calendar-wrapper .df-calendar-container {
+					height: 100%;
+					--df-calendar-height: 100%;
 				}
 
-				.df-calendar-container .df-calendar-content {
-					overflow-y: hidden !important;
+				.df-calendar-container .df-calendar-content,
+				.df-calendar-container .df-week-time-grid-scroller {
+					overflow-y: auto !important;
+				}
+
+				.df-calendar-container .df-day-content-grid-rows,
+				.df-calendar-container .df-week-time-grid-grid-inner,
+				.df-calendar-container .df-time-column {
+					min-height: calc(${CALENDAR_HOURS_COUNT} * var(--df-hour-height, ${CALENDAR_HOUR_HEIGHT}px));
 				}
 
 				.df-event {
