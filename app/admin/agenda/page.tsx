@@ -7,7 +7,7 @@ import "@dayflow/core/dist/styles.components.css";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useEmployeeSession } from "@/components/auth/employee-session-provider";
+import { useAuthSession } from "@/components/auth/employee-session-provider";
 
 type AppointmentRow = {
 	id: string;
@@ -76,8 +76,8 @@ export default function AdminAgendaPage() {
 	const [appointments, setAppointments] = useState<AppointmentRow[]>(initialAppointments);
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
-	const { employee } = useEmployeeSession();
-	const loggedOperatorName = employee?.name ?? "";
+	const { user } = useAuthSession();
+	const loggedOperatorName = user?.email ?? "";
 
 	const [customerName, setCustomerName] = useState("");
 	const [serviceName, setServiceName] = useState("");

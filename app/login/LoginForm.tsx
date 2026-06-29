@@ -3,15 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { useEmployeeSession } from "@/components/auth/employee-session-provider";
-import { EmployeeSessionError } from "@/lib/employee-session";
+import { AuthSessionError } from "@/lib/employee-session";
+import { useAuthSession } from "@/components/auth/employee-session-provider";
 
 const ERROR_VISIBILITY_MS = 3000;
 
 export default function OwnerLoginForm() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const { employee, isLoading, signIn } = useEmployeeSession();
+	const { user, isLoading, signIn } = useAuthSession();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [fieldErrors, setFieldErrors] = useState<{
@@ -28,11 +28,11 @@ export default function OwnerLoginForm() {
 			return;
 		}
 
-		if (employee) {
+		if (user) {
 			const next = searchParams.get("next") || "/admin/dashboard";
 			router.replace(next);
 		}
-	}, [employee, isLoading, router, searchParams]);
+	}, [isLoading, router, searchParams, user]);
 
 	useEffect(() => {
 		if (status !== "error") {
@@ -76,15 +76,17 @@ export default function OwnerLoginForm() {
 		setMessage(null);
 
 		try {
-			const currentEmployee = await signIn(email, password);
+			const currentUser = await signIn(email, password);
 			setStatus("success");
-			setMessage(`Login effettuato con successo. Benvenuto, ${currentEmployee.name}.`);
+			setMessage(
+				`Login effettuato con successo. Benvenuto${currentUser.email ? `, ${currentUser.email}` : ""}.`
+			);
 			const next = searchParams.get("next") || "/admin/dashboard";
 			router.push(next);
 		} catch (err) {
 			setStatus("error");
 			const errorMessage =
-				err instanceof EmployeeSessionError
+				err instanceof AuthSessionError
 					? err.message
 					: err instanceof Error
 						? err.message
@@ -187,7 +189,7 @@ export default function OwnerLoginForm() {
 				<button
 					type="submit"
 					disabled={status === "loading"}
-					className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
+					className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70 cursor-pointer"
 				>
 					{status === "loading" ? "Accesso in corso..." : "Accedi"}
 				</button>

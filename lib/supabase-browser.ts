@@ -16,6 +16,14 @@ export function getSupabaseBrowserClient() {
 		);
 	}
 
-	browserClient = createClient(supabaseUrl, supabaseAnonKey);
+	browserClient = createClient(supabaseUrl, supabaseAnonKey, {
+		auth: {
+			autoRefreshToken: true,
+			detectSessionInUrl: true,
+			persistSession: true,
+			// Keep browser sessions stable across reloads and client instances.
+			storageKey: "parrucchiere.supabase.auth",
+		},
+	});
 	return browserClient;
 }

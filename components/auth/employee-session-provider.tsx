@@ -10,31 +10,28 @@ import {
 } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
-	bootstrapEmployeeSession,
-	loadEmployeeForSession,
-	signInEmployee,
-	type Employee,
+	bootstrapUserSession,
+	loadUserForSession,
+	signInUser,
+	type AppUser,
 } from "@/lib/employee-session";
-import { clearAdminSessionActivity } from "@/lib/admin-session-timeout";
 
-type EmployeeSessionStatus = "loading" | "authenticated" | "unauthenticated";
+type AuthSessionStatus = "loading" | "authenticated" | "unauthenticated";
 
-type EmployeeSessionContextValue = {
-	employee: Employee | null;
-	status: EmployeeSessionStatus;
+type AuthSessionContextValue = {
+	user: AppUser | null;
+	status: AuthSessionStatus;
 	isLoading: boolean;
-	refreshEmployee: () => Promise<Employee | null>;
-	signIn: (email: string, password: string) => Promise<Employee>;
+	refreshUser: () => Promise<AppUser | null>;
+	signIn: (email: string, password: string) => Promise<AppUser>;
 	signOut: () => Promise<void>;
 };
 
-const EmployeeSessionContext = createContext<EmployeeSessionContextValue | null>(
-	null
-);
+const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
 
-export function EmployeeSessionProvider({ children }: { children: ReactNode }) {
-	const [employee, setEmployee] = useState<Employee | null>(null);
-	const [status, setStatus] = useState<EmployeeSessionStatus>("loading");
+export function AuthSessionProvider({ children }: { children: ReactNode }) {
+	const [user, setUser] = useState<AppUser | null>(null);
+	const [status, setStatus] = useState<AuthSessionStatus>("loading");
 
 	useEffect(() => {
 		let mounted = true;
@@ -43,23 +40,20 @@ export function EmployeeSessionProvider({ children }: { children: ReactNode }) {
 		const syncSession = async () => {
 			try {
 				const { data } = await supabase.auth.getSession();
-				const currentEmployee = await loadEmployeeForSession(
-					supabase,
-					data.session
-				);
+				const currentUser = await loadUserForSession(supabase, data.session);
 
 				if (!mounted) {
 					return;
 				}
 
-				setEmployee(currentEmployee);
-				setStatus(currentEmployee ? "authenticated" : "unauthenticated");
+				setUser(currentUser);
+				setStatus(currentUser ? "authenticated" : "unauthenticated");
 			} catch {
 				if (!mounted) {
 					return;
 				}
 
-				setEmployee(null);
+				setUser(null);
 				setStatus("unauthenticated");
 			}
 		};
@@ -71,20 +65,20 @@ export function EmployeeSessionProvider({ children }: { children: ReactNode }) {
 		} = supabase.auth.onAuthStateChange((_event, session) => {
 			void (async () => {
 				try {
-					const currentEmployee = await loadEmployeeForSession(supabase, session);
+					const currentUser = await loadUserForSession(supabase, session);
 
 					if (!mounted) {
 						return;
 					}
 
-					setEmployee(currentEmployee);
-					setStatus(currentEmployee ? "authenticated" : "unauthenticated");
+					setUser(currentUser);
+					setStatus(currentUser ? "authenticated" : "unauthenticated");
 				} catch {
 					if (!mounted) {
 						return;
 					}
 
-					setEmployee(null);
+					setUser(null);
 					setStatus("unauthenticated");
 				}
 			})();
@@ -96,46 +90,45 @@ export function EmployeeSessionProvider({ children }: { children: ReactNode }) {
 		};
 	}, []);
 
-	const value = useMemo<EmployeeSessionContextValue>(
+	const value = useMemo<AuthSessionContextValue>(
 		() => ({
-			employee,
+			user,
 			status,
 			isLoading: status === "loading",
-			refreshEmployee: async () => {
-				const currentEmployee = await bootstrapEmployeeSession();
-				setEmployee(currentEmployee);
-				setStatus(currentEmployee ? "authenticated" : "unauthenticated");
-				return currentEmployee;
+			refreshUser: async () => {
+				const currentUser = await bootstrapUserSession();
+				setUser(currentUser);
+				setStatus(currentUser ? "authenticated" : "unauthenticated");
+				return currentUser;
 			},
 			signIn: async (email, password) => {
-				const currentEmployee = await signInEmployee(email, password);
-				setEmployee(currentEmployee);
+				const currentUser = await signInUser(email, password);
+				setUser(currentUser);
 				setStatus("authenticated");
-				return currentEmployee;
+				return currentUser;
 			},
 			signOut: async () => {
 				const supabase = getSupabaseBrowserClient();
-				clearAdminSessionActivity();
 				await supabase.auth.signOut();
-				setEmployee(null);
+				setUser(null);
 				setStatus("unauthenticated");
 			},
 		}),
-		[employee, status]
+		[user, status]
 	);
 
 	return (
-		<EmployeeSessionContext.Provider value={value}>
+		<AuthSessionContext.Provider value={value}>
 			{children}
-		</EmployeeSessionContext.Provider>
+		</AuthSessionContext.Provider>
 	);
 }
 
-export function useEmployeeSession() {
-	const context = useContext(EmployeeSessionContext);
+export function useAuthSession() {
+	const context = useContext(AuthSessionContext);
 
 	if (!context) {
-		throw new Error("useEmployeeSession deve essere usato dentro EmployeeSessionProvider.");
+		throw new Error("useAuthSession deve essere usato dentro AuthSessionProvider.");
 	}
 
 	return context;

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 import "./globals.css";
-import { EmployeeSessionProvider } from "@/components/auth/employee-session-provider";
+import { AuthSessionProvider } from "@/components/auth/employee-session-provider";
 import Navbar from "@/components/navbar";
 
 export const metadata: Metadata = {
@@ -12,16 +13,16 @@ export const metadata: Metadata = {
 export default function RootLayout({
 	children,
 }: Readonly<{
-	children: React.ReactNode;
+	children: ReactNode;
 }>) {
 	return (
 		<html lang="en">
 			<body className="antialiased">
-				<EmployeeSessionProvider>
+				<AuthSessionProvider>
 					<Navbar />
 					{children}
 					<Toaster richColors position="bottom-right" />
-				</EmployeeSessionProvider>
+				</AuthSessionProvider>
 			</body>
 		</html>
 	);
