@@ -7,7 +7,7 @@ import "@dayflow/core/dist/styles.components.css";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useEmployeeSession } from "@/components/auth/employee-session-provider";
 
 type AppointmentRow = {
 	id: string;
@@ -76,7 +76,8 @@ export default function AdminAgendaPage() {
 	const [appointments, setAppointments] = useState<AppointmentRow[]>(initialAppointments);
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
-	const [loggedOperatorName, setLoggedOperatorName] = useState("");
+	const { employee } = useEmployeeSession();
+	const loggedOperatorName = employee?.name ?? "";
 
 	const [customerName, setCustomerName] = useState("");
 	const [serviceName, setServiceName] = useState("");
@@ -90,22 +91,6 @@ export default function AdminAgendaPage() {
 	const [editEndAt, setEditEndAt] = useState("");
 	const [editNotes, setEditNotes] = useState("");
 	const [calendarView, setCalendarView] = useState<string>(ViewType.WEEK);
-
-	useEffect(() => {
-		const loadLoggedOperator = async () => {
-			const supabase = getSupabaseBrowserClient();
-			const { data } = await supabase.auth.getSession();
-			const user = data.session?.user;
-			if (!user) return;
-
-			const fullName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
-			const name = typeof user.user_metadata?.name === "string" ? user.user_metadata.name : "";
-			const emailLocalPart = user.email?.split("@")[0] ?? "";
-			setLoggedOperatorName((fullName || name || emailLocalPart).trim());
-		};
-
-		void loadLoggedOperator();
-	}, []);
 
 	const calendarEvents = useMemo(
 		() =>

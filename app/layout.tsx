@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
 import "./globals.css";
+import { EmployeeSessionProvider } from "@/components/auth/employee-session-provider";
 import Navbar from "@/components/navbar";
 
 export const metadata: Metadata = {
@@ -16,9 +17,11 @@ export default function RootLayout({
 	return (
 		<html lang="en">
 			<body className="antialiased">
-				<Navbar />
-				{children}
-				<Toaster richColors position="bottom-right" />
+				<EmployeeSessionProvider>
+					<Navbar />
+					{children}
+					<Toaster richColors position="bottom-right" />
+				</EmployeeSessionProvider>
 			</body>
 		</html>
 	);

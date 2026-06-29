@@ -193,12 +193,16 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 									size="icon"
 									className="h-8 w-8 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
 									aria-label="Menu azioni"
-									onClick={(e) => {
-										e.stopPropagation();
-										openMenuId === service.id ? closeMenu() : openMenu(service.id);
-									}}
-									disabled={deletingId === service.id}
-								>
+								onClick={(e) => {
+									e.stopPropagation();
+									if (openMenuId === service.id) {
+										closeMenu();
+										return;
+									}
+									openMenu(service.id);
+								}}
+								disabled={deletingId === service.id}
+							>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										width="16"

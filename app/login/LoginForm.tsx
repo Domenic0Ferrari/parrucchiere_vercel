@@ -3,18 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import {
-	clearAdminSessionActivity,
-	isAdminSessionTimedOut,
-	markAdminSessionActivity,
-} from "@/lib/admin-session-timeout";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useEmployeeSession } from "@/components/auth/employee-session-provider";
+import { EmployeeSessionError } from "@/lib/employee-session";
 
 const ERROR_VISIBILITY_MS = 3000;
 
 export default function OwnerLoginForm() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const { employee, isLoading, signIn } = useEmployeeSession();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [fieldErrors, setFieldErrors] = useState<{
@@ -25,41 +22,17 @@ export default function OwnerLoginForm() {
 		"idle"
 	);
 	const [message, setMessage] = useState<string | null>(null);
-	const [checkingSession, setCheckingSession] = useState(true);
 
 	useEffect(() => {
-		let mounted = true;
-		const supabase = getSupabaseBrowserClient();
+		if (isLoading) {
+			return;
+		}
 
-		const bootstrap = async () => {
-			const { data } = await supabase.auth.getSession();
-			if (!mounted) {
-				return;
-			}
-
-			if (data.session) {
-				if (isAdminSessionTimedOut()) {
-					clearAdminSessionActivity();
-					await supabase.auth.signOut();
-					setCheckingSession(false);
-					return;
-				}
-
-				markAdminSessionActivity();
-				const next = searchParams.get("next") || "/admin/dashboard";
-				router.replace(next);
-				return;
-			}
-
-			setCheckingSession(false);
-		};
-
-		void bootstrap();
-
-		return () => {
-			mounted = false;
-		};
-	}, [router, searchParams]);
+		if (employee) {
+			const next = searchParams.get("next") || "/admin/dashboard";
+			router.replace(next);
+		}
+	}, [employee, isLoading, router, searchParams]);
 
 	useEffect(() => {
 		if (status !== "error") {
@@ -103,34 +76,25 @@ export default function OwnerLoginForm() {
 		setMessage(null);
 
 		try {
-			const supabase = getSupabaseBrowserClient();
-			const { error } = await supabase.auth.signInWithPassword({
-				email,
-				password,
-			});
-
-			if (error) {
-				setStatus("error");
-				setMessage(null);
-				toast.error("Credenziali non valide. Riprova.");
-				return;
-			}
-
-			markAdminSessionActivity();
+			const currentEmployee = await signIn(email, password);
 			setStatus("success");
-			setMessage("Login effettuato con successo.");
+			setMessage(`Login effettuato con successo. Benvenuto, ${currentEmployee.name}.`);
 			const next = searchParams.get("next") || "/admin/dashboard";
 			router.push(next);
 		} catch (err) {
 			setStatus("error");
-			setMessage(null);
-			toast.error(
-				err instanceof Error ? err.message : "Errore imprevisto durante il login."
-			);
+			const errorMessage =
+				err instanceof EmployeeSessionError
+					? err.message
+					: err instanceof Error
+						? err.message
+						: "Errore imprevisto durante il login.";
+			setMessage(errorMessage);
+			toast.error(errorMessage);
 		}
 	};
 
-	if (checkingSession) {
+	if (isLoading) {
 		return (
 			<section className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8">
 				<p className="text-sm text-zinc-600">Controllo sessione in corso...</p>
@@ -228,8 +192,12 @@ export default function OwnerLoginForm() {
 					{status === "loading" ? "Accesso in corso..." : "Accedi"}
 				</button>
 
-				{message && status !== "error" ? (
-					<p className="text-sm text-emerald-600">
+				{message ? (
+					<p
+						className={`text-sm ${
+							status === "error" ? "text-red-600" : "text-emerald-600"
+						}`}
+					>
 						{message}
 					</p>
 				) : null}
