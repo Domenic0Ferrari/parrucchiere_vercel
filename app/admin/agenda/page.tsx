@@ -77,7 +77,7 @@ export default function AdminAgendaPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const { user } = useAuthSession();
-	const loggedOperatorName = user?.email ?? "";
+	const loggedOperatorName = user?.employee.name ?? "";
 
 	const [customerName, setCustomerName] = useState("");
 	const [serviceName, setServiceName] = useState("");

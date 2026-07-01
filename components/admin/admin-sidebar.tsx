@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, LayoutDashboard, LogOut, Package, X } from "lucide-react";
+import { CalendarDays, LayoutDashboard, LogOut, Package, Tags, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { clearAdminSessionActivity } from "@/lib/admin-session-timeout";
@@ -11,6 +11,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 const menuItems = [
 	{ href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
 	{ href: "/admin/services", label: "Servizi", icon: Package },
+	{ href: "/admin/categories", label: "Categorie", icon: Tags },
 	{ href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
 ];
 

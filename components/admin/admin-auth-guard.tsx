@@ -10,17 +10,12 @@ export default function AdminAuthGuard({ children }: { children: ReactNode }) {
 	const { user, isLoading } = useAuthSession();
 
 	useEffect(() => {
-		const redirectToLogin = () => {
-			router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-		};
-
 		if (isLoading) {
 			return;
 		}
 
 		if (!user) {
-			redirectToLogin();
-			return;
+			router.replace(`/login?next=${encodeURIComponent(pathname)}`);
 		}
 	}, [isLoading, pathname, router, user]);
 

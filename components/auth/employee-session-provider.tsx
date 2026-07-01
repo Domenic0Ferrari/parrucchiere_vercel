@@ -96,10 +96,16 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
 			status,
 			isLoading: status === "loading",
 			refreshUser: async () => {
-				const currentUser = await bootstrapUserSession();
-				setUser(currentUser);
-				setStatus(currentUser ? "authenticated" : "unauthenticated");
-				return currentUser;
+				try {
+					const currentUser = await bootstrapUserSession();
+					setUser(currentUser);
+					setStatus(currentUser ? "authenticated" : "unauthenticated");
+					return currentUser;
+				} catch {
+					setUser(null);
+					setStatus("unauthenticated");
+					return null;
+				}
 			},
 			signIn: async (email, password) => {
 				const currentUser = await signInUser(email, password);

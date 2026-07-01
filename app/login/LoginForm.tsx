@@ -78,8 +78,10 @@ export default function OwnerLoginForm() {
 		try {
 			const currentUser = await signIn(email, password);
 			setStatus("success");
+			const displayName =
+				currentUser.employee.name || currentUser.auth.email || "";
 			setMessage(
-				`Login effettuato con successo. Benvenuto${currentUser.email ? `, ${currentUser.email}` : ""}.`
+				`Login effettuato con successo. Benvenuto${displayName ? `, ${displayName}` : ""}.`
 			);
 			const next = searchParams.get("next") || "/admin/dashboard";
 			router.push(next);
