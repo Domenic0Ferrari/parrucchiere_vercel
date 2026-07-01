@@ -85,7 +85,7 @@ export default async function AdminServicesPage() {
 					</p>
 				</div>
 				<Link href="/admin/services/new">
-					<Button className="hover:cursor-pointer">Aggiungi Servizio</Button>
+					<Button>Aggiungi Servizio</Button>
 				</Link>
 			</header>
 
