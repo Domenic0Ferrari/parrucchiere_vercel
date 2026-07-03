@@ -13,6 +13,12 @@ export type ServiceItem = {
 	description: string | null;
 	price: number | null;
 	durationMinutes: number | null;
+	categories: ServiceCategoryItem[];
+};
+
+export type ServiceCategoryItem = {
+	name: string;
+	isActive: boolean;
 };
 
 const TABLE_NAME = "services";
@@ -48,6 +54,32 @@ function normalizeService(row: RawService, index: number): ServiceItem {
 				: null,
 		price: toNullableNumber(priceValue),
 		durationMinutes: toNullableNumber(durationValue),
+		categories: [],
+	};
+}
+
+function normalizeServiceCategory(row: RawService): {
+	serviceId: string;
+	category: ServiceCategoryItem;
+} | null {
+	const serviceId = row.service_id ?? row.serviceId;
+	const category = row.categories;
+
+	if (!serviceId || typeof category !== "object" || category === null) {
+		return null;
+	}
+
+	const categoryRow = category as RawService;
+	const categoryName = categoryRow.name ?? categoryRow.nome ?? categoryRow.title;
+	if (!categoryName) return null;
+	const isActiveValue = categoryRow.is_active ?? categoryRow.isActive ?? categoryRow.active;
+
+	return {
+		serviceId: String(serviceId),
+		category: {
+			name: String(categoryName),
+			isActive: isActiveValue === true || isActiveValue === "true" || isActiveValue === 1,
+		},
 	};
 }
 
@@ -60,7 +92,10 @@ async function getServices() {
 	}
 
 	const supabase = createClient(supabaseUrl, supabaseAnonKey);
-	const { data, error } = await supabase.from(TABLE_NAME).select("*");
+	const { data, error } = await supabase
+		.from(TABLE_NAME)
+		.select("*")
+		.eq("is_active", true);
 	if (error) {
 		return {
 			services: [],
@@ -68,8 +103,31 @@ async function getServices() {
 		};
 	}
 
+	const { data: serviceCategoryData } = await supabase
+		.from("categories2services")
+		.select("service_id, categories(name, is_active)")
+		.order("name", { referencedTable: "categories", ascending: true });
+
+	const categoriesByServiceId = new Map<string, ServiceCategoryItem[]>();
+	for (const row of (serviceCategoryData ?? []) as RawService[]) {
+		const item = normalizeServiceCategory(row);
+		if (!item) continue;
+		const current = categoriesByServiceId.get(item.serviceId) ?? [];
+		current.push(item.category);
+		categoriesByServiceId.set(item.serviceId, current);
+	}
+
 	const rows = (data ?? []) as RawService[];
-	return { services: rows.map((row, index) => normalizeService(row, index)), error: null };
+	return {
+		services: rows.map((row, index) => {
+			const service = normalizeService(row, index);
+			return {
+				...service,
+				categories: categoriesByServiceId.get(service.id) ?? [],
+			};
+		}),
+		error: null,
+	};
 }
 
 export default async function AdminServicesPage() {

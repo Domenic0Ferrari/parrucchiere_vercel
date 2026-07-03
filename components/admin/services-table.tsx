@@ -14,9 +14,15 @@ export type ServiceItem = {
 	description: string | null;
 	price: number | null;
 	durationMinutes: number | null;
+	categories: ServiceCategoryItem[];
 };
 
-type SortKey = "name" | "description" | "price" | "durationMinutes";
+export type ServiceCategoryItem = {
+	name: string;
+	isActive: boolean;
+};
+
+type SortKey = "name" | "description" | "price" | "durationMinutes" | "categories";
 type SortDir = "asc" | "desc";
 
 function sortServices(
@@ -27,8 +33,16 @@ function sortServices(
 	return [...services].sort((a, b) => {
 		const aVal = a[key];
 		const bVal = b[key];
-		const aStr = aVal != null ? String(aVal).toLowerCase() : "";
-		const bStr = bVal != null ? String(bVal).toLowerCase() : "";
+		const aStr = Array.isArray(aVal)
+			? aVal.map((category) => category.name).join(", ").toLowerCase()
+			: aVal != null
+				? String(aVal).toLowerCase()
+				: "";
+		const bStr = Array.isArray(bVal)
+			? bVal.map((category) => category.name).join(", ").toLowerCase()
+			: bVal != null
+				? String(bVal).toLowerCase()
+				: "";
 		const aNum = typeof aVal === "number" ? aVal : Number.NaN;
 		const bNum = typeof bVal === "number" ? bVal : Number.NaN;
 
@@ -47,6 +61,21 @@ function SortIcon({ dir }: { dir: SortDir | null }) {
 	return (
 		<span className="ml-0.5 inline-block w-4 text-zinc-600">
 			{dir === "asc" ? "↑" : "↓"}
+		</span>
+	);
+}
+
+function CategoryBadge({ category }: { category: ServiceCategoryItem }) {
+	return (
+		<span
+			className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+				category.isActive
+					? "bg-zinc-100 text-zinc-700"
+					: "bg-zinc-200 text-zinc-500"
+			}`}
+		>
+			{category.name}
+			{category.isActive ? null : " disattiva"}
 		</span>
 	);
 }
@@ -86,7 +115,10 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 				router.replace("/login?next=%2Fadmin%2Fservices");
 				return;
 			}
-			const { error } = await supabase.from("services").delete().eq("id", id);
+			const { error } = await supabase
+				.from("services")
+				.update({ is_active: false })
+				.eq("id", id);
 			if (error) {
 				toast.error(error.message);
 				return;
@@ -156,6 +188,16 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 						<th className="px-4 py-3">
 							<button
 								type="button"
+								onClick={() => handleSort("categories")}
+								className="flex items-center font-semibold text-zinc-900 hover:text-zinc-700"
+							>
+								Categorie
+								<SortIcon dir={sortKey === "categories" ? sortDir : null} />
+							</button>
+						</th>
+						<th className="px-4 py-3">
+							<button
+								type="button"
 								onClick={() => handleSort("durationMinutes")}
 								className="flex items-center font-semibold text-zinc-900 hover:text-zinc-700"
 							>
@@ -179,6 +221,17 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 							</td>
 							<td className="px-4 py-3 text-zinc-600">
 								{service.price !== null ? `EUR ${service.price.toFixed(2)}` : "—"}
+							</td>
+							<td className="max-w-[220px] px-4 py-3 text-zinc-600">
+								{service.categories.length > 0 ? (
+									<div className="flex flex-wrap gap-1.5">
+										{service.categories.map((category) => (
+											<CategoryBadge key={category.name} category={category} />
+										))}
+									</div>
+								) : (
+									"—"
+								)}
 							</td>
 							<td className="px-4 py-3 text-zinc-600">
 								{service.durationMinutes !== null ? `${service.durationMinutes} min` : "—"}
