@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ServiceForm } from "@/components/admin/service-form";
+import { ServiceForm, type ServiceCategoryOption } from "@/components/admin/service-form";
 
 type RawService = Record<string, unknown>;
 
@@ -20,6 +20,7 @@ function normalizeService(row: RawService): {
 	description: string;
 	price: number;
 	durationMinutes: number;
+	categoryIds: string[];
 } {
 	const id = String(row.id ?? "");
 	const name = String(row.name ?? row.nome ?? row.title ?? row.service_name ?? "");
@@ -33,15 +34,44 @@ function normalizeService(row: RawService): {
 		description: typeof desc === "string" && desc.trim() !== "" ? desc : "",
 		price: toNullableNumber(priceVal) ?? 0,
 		durationMinutes: toNullableNumber(durVal) ?? 0,
+		categoryIds: [],
 	};
 }
 
-async function getService(id: string) {
+function normalizeCategory(row: RawService): ServiceCategoryOption {
+	const isActiveValue = row.is_active ?? row.isActive ?? row.active;
+	return {
+		id: String(row.id ?? row.uuid ?? ""),
+		name: String(row.name ?? row.nome ?? row.title ?? "Categoria"),
+		isActive: isActiveValue === true || isActiveValue === "true" || isActiveValue === 1,
+	};
+}
+
+async function getSupabaseClient() {
 	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 	if (!supabaseUrl || !supabaseAnonKey) return null;
 
-	const supabase = createClient(supabaseUrl, supabaseAnonKey);
+	return createClient(supabaseUrl, supabaseAnonKey);
+}
+
+async function getCategories() {
+	const supabase = await getSupabaseClient();
+	if (!supabase) return [];
+
+	const { data, error } = await supabase
+		.from("categories")
+		.select("*")
+		.order("display_order", { ascending: true });
+
+	if (error) return [];
+	return ((data ?? []) as RawService[]).map(normalizeCategory).filter((category) => category.id);
+}
+
+async function getService(id: string) {
+	const supabase = await getSupabaseClient();
+	if (!supabase) return null;
+
 	const { data, error } = await supabase
 		.from("services")
 		.select("*")
@@ -49,7 +79,19 @@ async function getService(id: string) {
 		.single();
 
 	if (error || !data) return null;
-	return normalizeService(data as RawService);
+
+	const { data: categoryData } = await supabase
+		.from("categories2services")
+		.select("categories_id")
+		.eq("service_id", id);
+
+	return {
+		...normalizeService(data as RawService),
+		categoryIds: ((categoryData ?? []) as RawService[])
+			.map((row) => row.categories_id)
+			.filter((categoryId): categoryId is string | number => Boolean(categoryId))
+			.map(String),
+	};
 }
 
 export default async function ServicePage({
@@ -58,6 +100,7 @@ export default async function ServicePage({
 	params: Promise<{ id: string }>;
 }) {
 	const { id } = await params;
+	const categories = await getCategories();
 
 	if (id === "new") {
 		return (
@@ -71,7 +114,7 @@ export default async function ServicePage({
 						Torna ai servizi
 					</Link>
 				</header>
-				<ServiceForm service={null} />
+				<ServiceForm service={null} categories={categories} />
 			</section>
 		);
 	}
@@ -90,7 +133,7 @@ export default async function ServicePage({
 					Torna ai servizi
 				</Link>
 			</header>
-			<ServiceForm service={service} />
+			<ServiceForm service={service} categories={categories} />
 		</section>
 	);
 }

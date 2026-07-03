@@ -6,7 +6,22 @@ import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import type { ServiceItem } from "./services-table";
+import type { ServiceCategoryItem, ServiceItem } from "./services-table";
+
+function CategoryBadge({ category }: { category: ServiceCategoryItem }) {
+	return (
+		<span
+			className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+				category.isActive
+					? "bg-zinc-100 text-zinc-700"
+					: "bg-zinc-200 text-zinc-500"
+			}`}
+		>
+			{category.name}
+			{category.isActive ? null : " disattiva"}
+		</span>
+	);
+}
 
 export function ServicesCards({ services }: { services: ServiceItem[] }) {
 	const router = useRouter();
@@ -28,7 +43,10 @@ export function ServicesCards({ services }: { services: ServiceItem[] }) {
 				router.replace("/login?next=%2Fadmin%2Fservices");
 				return;
 			}
-			const { error } = await supabase.from("services").delete().eq("id", id);
+			const { error } = await supabase
+				.from("services")
+				.update({ is_active: false })
+				.eq("id", id);
 			if (error) {
 				toast.error(error.message);
 				return;
@@ -63,6 +81,15 @@ export function ServicesCards({ services }: { services: ServiceItem[] }) {
 								{service.durationMinutes !== null ? (
 									<span>Durata: {service.durationMinutes} min</span>
 								) : null}
+							</div>
+							<div className="mt-2 flex flex-wrap gap-1.5">
+								{service.categories.length > 0 ? (
+									service.categories.map((category) => (
+										<CategoryBadge key={category.name} category={category} />
+									))
+								) : (
+									<span className="text-xs text-zinc-500">Nessuna categoria</span>
+								)}
 							</div>
 						</div>
 						<div className="shrink-0">
