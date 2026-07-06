@@ -8,6 +8,7 @@ import { X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	Select,
 	SelectContent,
@@ -65,6 +66,9 @@ type CreateFieldErrors = NewCustomerFieldErrors & {
 	customer?: boolean;
 	service?: boolean;
 	startAt?: boolean;
+};
+type DuplicateAppointmentWarning = {
+	customerName: string;
 };
 
 const TIME_ZONE = "Europe/Rome";
@@ -392,6 +396,7 @@ export default function AdminAgendaPage() {
 	const [startAt, setStartAt] = useState(getDefaultStartDateTime);
 	const [endAt, setEndAt] = useState("");
 	const [notes, setNotes] = useState("");
+	const [duplicateAppointmentWarning, setDuplicateAppointmentWarning] = useState<DuplicateAppointmentWarning | null>(null);
 
 	const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 	const [editCustomerId, setEditCustomerId] = useState("");
@@ -590,6 +595,8 @@ export default function AdminAgendaPage() {
 					title: baseText,
 					start: toZonedDateTime(item.start_at),
 					end: toZonedDateTime(item.end_at),
+					allDay: false,
+					calendarId: "blue",
 					description: item.notes ?? "",
 				};
 			}),
@@ -665,7 +672,7 @@ export default function AdminAgendaPage() {
 				setEditNotes(current.notes ?? "");
 			},
 		},
-	});
+	}, `${selectedEmployeeId}:${calendarEventsKey}`);
 
 	useEffect(() => {
 		if (calendarView !== ViewType.DAY && calendarView !== ViewType.WEEK) return;
@@ -840,7 +847,7 @@ export default function AdminAgendaPage() {
 			phone
 				? supabase
 						.from("customers")
-						.select("id, name")
+						.select("id, name, phone, email, note")
 						.eq("phone", phone)
 						.limit(1)
 						.maybeSingle()
@@ -848,7 +855,7 @@ export default function AdminAgendaPage() {
 			email
 				? supabase
 						.from("customers")
-						.select("id, name")
+						.select("id, name, phone, email, note")
 						.eq("email", email)
 						.limit(1)
 						.maybeSingle()
@@ -859,13 +866,19 @@ export default function AdminAgendaPage() {
 		if (emailCheck.error) throw emailCheck.error;
 		if (phoneCheck.data) {
 			const customer = normalizeCustomer(phoneCheck.data as RawRow);
-			setCreateFieldErrors({ phone: true });
-			throw new Error(`Esiste già un cliente con questo numero di telefono: ${customer.name}.`);
+			setCustomers((prev) => prev.some((item) => item.id === customer.id)
+				? prev
+				: [...prev, customer].sort((a, b) => a.name.localeCompare(b.name, "it"))
+			);
+			return customer.id;
 		}
 		if (emailCheck.data) {
 			const customer = normalizeCustomer(emailCheck.data as RawRow);
-			setCreateFieldErrors({ email: true });
-			throw new Error(`Esiste già un cliente con questa email: ${customer.name}.`);
+			setCustomers((prev) => prev.some((item) => item.id === customer.id)
+				? prev
+				: [...prev, customer].sort((a, b) => a.name.localeCompare(b.name, "it"))
+			);
+			return customer.id;
 		}
 
 		const customerPayload: Record<string, string | null> = {
@@ -889,8 +902,57 @@ export default function AdminAgendaPage() {
 		return customer.id;
 	};
 
-	const onCreateAppointment = async (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const findExistingAppointmentByCustomerContact = async () => {
+		const supabase = getSupabaseBrowserClient();
+		const selectedCustomer = customerMode === "existing" ? customersById.get(selectedCustomerId) : null;
+		const phone = (selectedCustomer?.phone ?? newCustomerPhone).trim();
+		const email = (selectedCustomer?.email ?? newCustomerEmail).trim();
+
+		if (!phone && !email) return null;
+
+		const [phoneCheck, emailCheck] = await Promise.all([
+			phone
+				? supabase
+						.from("customers")
+						.select("id, name, phone, email, note")
+						.eq("phone", phone)
+				: Promise.resolve({ data: null, error: null }),
+			email
+				? supabase
+						.from("customers")
+						.select("id, name, phone, email, note")
+						.eq("email", email)
+				: Promise.resolve({ data: null, error: null }),
+		]);
+
+		if (phoneCheck.error) throw phoneCheck.error;
+		if (emailCheck.error) throw emailCheck.error;
+
+		const matchingCustomers = [
+			...((phoneCheck.data ?? []) as RawRow[]),
+			...((emailCheck.data ?? []) as RawRow[]),
+		]
+			.map(normalizeCustomer)
+			.filter((customer, index, list) => customer.id && list.findIndex((item) => item.id === customer.id) === index);
+
+		if (matchingCustomers.length === 0) return null;
+
+		const { data: appointmentData, error: appointmentError } = await supabase
+			.from("appointements")
+			.select("customer_id")
+			.in("customer_id", matchingCustomers.map((customer) => customer.id))
+			.eq("status", ACTIVE_APPOINTMENT_STATUS)
+			.limit(1)
+			.maybeSingle();
+
+		if (appointmentError) throw appointmentError;
+		if (!appointmentData) return null;
+
+		const appointmentCustomerId = String((appointmentData as RawRow).customer_id ?? "");
+		return matchingCustomers.find((customer) => customer.id === appointmentCustomerId) ?? matchingCustomers[0] ?? null;
+	};
+
+	const saveCreateAppointment = async ({ skipDuplicateCheck = false }: { skipDuplicateCheck?: boolean } = {}) => {
 		setSaving(true);
 		setError(null);
 
@@ -901,6 +963,14 @@ export default function AdminAgendaPage() {
 
 			const timeError = validateTimes(startAt, endAt);
 			if (timeError) throw new Error(timeError);
+
+			if (!skipDuplicateCheck) {
+				const duplicateCustomer = await findExistingAppointmentByCustomerContact();
+				if (duplicateCustomer) {
+					setDuplicateAppointmentWarning({ customerName: duplicateCustomer.name });
+					return;
+				}
+			}
 
 			const service = servicesById.get(selectedServiceId);
 			const customerId = await createCustomerIfNeeded();
@@ -937,6 +1007,11 @@ export default function AdminAgendaPage() {
 		} finally {
 			setSaving(false);
 		}
+	};
+
+	const onCreateAppointment = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		void saveCreateAppointment();
 	};
 
 	const onDeleteAppointment = async (id: string) => {
@@ -1077,7 +1152,7 @@ export default function AdminAgendaPage() {
 							type="button"
 							variant="outline"
 							className="cursor-pointer text-zinc-900 hover:text-zinc-900"
-							onClick={() => changeCalendarDate(Temporal.Now.plainDateISO().toString())}
+							onClick={() => changeCalendarDate(Temporal.Now.plainDateISO(TIME_ZONE).toString())}
 						>
 							Oggi
 						</Button>
@@ -1408,6 +1483,20 @@ export default function AdminAgendaPage() {
 					</div>
 				</div>
 			) : null}
+
+			<ConfirmDialog
+				open={Boolean(duplicateAppointmentWarning)}
+				title="Prenotazione già presente"
+				description={`esiste già una prenotazione per il cliente: ${duplicateAppointmentWarning?.customerName ?? ""}. Procedere lo stesso?`}
+				confirmLabel="Procedere"
+				cancelLabel="Annulla"
+				isLoading={saving}
+				onConfirm={() => {
+					setDuplicateAppointmentWarning(null);
+					void saveCreateAppointment({ skipDuplicateCheck: true });
+				}}
+				onCancel={() => setDuplicateAppointmentWarning(null)}
+			/>
 
 			<style jsx global>{`
 				.df-calendar-wrapper,
