@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, LayoutDashboard, LogOut, Package, Tags, X } from "lucide-react";
+import { CalendarDays, LayoutDashboard, LogOut, Package, Tags, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { clearAdminSessionActivity } from "@/lib/admin-session-timeout";
@@ -12,6 +12,7 @@ const menuItems = [
 	{ href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
 	{ href: "/admin/services", label: "Servizi", icon: Package },
 	{ href: "/admin/categories", label: "Categorie", icon: Tags },
+	{ href: "/admin/customers", label: "Clienti", icon: Users },
 	{ href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
 ];
 
