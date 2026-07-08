@@ -56,7 +56,8 @@ type Closure = {
 };
 
 type ClosureForm = {
-	closure_date: string;
+	start_date: string;
+	end_date: string;
 	reason: string;
 	all_day: boolean;
 	start_time: string;
@@ -78,7 +79,8 @@ const emptySalon: Salon = {
 };
 
 const emptyClosureForm: ClosureForm = {
-	closure_date: "",
+	start_date: "",
+	end_date: "",
 	reason: "",
 	all_day: true,
 	start_time: "",
@@ -113,6 +115,40 @@ function formatDate(value: string) {
 	if (!value) return "";
 	const [year, month, day] = value.split("-");
 	return `${day}/${month}/${year}`;
+}
+
+function parseDateInput(value: string) {
+	const [year, month, day] = value.split("-").map(Number);
+	if (!year || !month || !day) return null;
+
+	const date = new Date(Date.UTC(year, month - 1, day));
+	const isSameDate =
+		date.getUTCFullYear() === year &&
+		date.getUTCMonth() === month - 1 &&
+		date.getUTCDate() === day;
+
+	return isSameDate ? date : null;
+}
+
+function formatDateInput(date: Date) {
+	const year = date.getUTCFullYear();
+	const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+	const day = String(date.getUTCDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
+}
+
+function getDatesInRange(startDate: string, endDate: string) {
+	const start = parseDateInput(startDate);
+	const end = parseDateInput(endDate);
+	if (!start || !end || start > end) return [];
+
+	const dates: string[] = [];
+	const current = new Date(start);
+	while (current <= end) {
+		dates.push(formatDateInput(current));
+		current.setUTCDate(current.getUTCDate() + 1);
+	}
+	return dates;
 }
 
 function buildSalonPayload(salon: Salon) {
@@ -371,7 +407,11 @@ export function SalonManagementPage() {
 
 	function validateClosureForm(form: ClosureForm) {
 		const nextErrors: FieldErrors = {};
-		if (!form.closure_date) nextErrors.closure_date = "Seleziona una data.";
+		if (!form.start_date) nextErrors.start_date = "Seleziona la data di inizio.";
+		if (!form.end_date) nextErrors.end_date = "Seleziona la data di fine.";
+		if (form.start_date && form.end_date && form.end_date < form.start_date) {
+			nextErrors.end_date = "La data di fine deve essere successiva o uguale all'inizio.";
+		}
 		if (!form.all_day) {
 			if (!form.start_time) nextErrors.start_time = "Inserisci l'orario di inizio.";
 			if (!form.end_time) nextErrors.end_time = "Inserisci l'orario di fine.";
@@ -395,28 +435,34 @@ export function SalonManagementPage() {
 			const salonId = await ensureSalonRecord();
 			if (!salonId) return;
 
+			const closureDates = getDatesInRange(closureForm.start_date, closureForm.end_date);
 			const { data, error } = await supabase
 				.from("salon_closures")
-				.insert({
-					salon_id: salonId,
-					closure_date: closureForm.closure_date,
-					reason: closureForm.reason.trim() || null,
-					all_day: closureForm.all_day,
-					start_time: closureForm.all_day ? null : closureForm.start_time,
-					end_time: closureForm.all_day ? null : closureForm.end_time,
-				})
-				.select("id, salon_id, closure_date, reason, all_day, start_time, end_time, created_at")
-				.single();
+				.insert(
+					closureDates.map((closureDate) => ({
+						salon_id: salonId,
+						closure_date: closureDate,
+						reason: closureForm.reason.trim() || null,
+						all_day: closureForm.all_day,
+						start_time: closureForm.all_day ? null : closureForm.start_time,
+						end_time: closureForm.all_day ? null : closureForm.end_time,
+					}))
+				)
+				.select("id, salon_id, closure_date, reason, all_day, start_time, end_time, created_at");
 
 			if (error) throw error;
 			setClosures((current) =>
-				[...current, normalizeClosure(data)].sort((a, b) =>
+				[...current, ...(data ?? []).map(normalizeClosure)].sort((a, b) =>
 					a.closure_date.localeCompare(b.closure_date)
 				)
 			);
 			setClosureForm(emptyClosureForm);
 			setClosureErrors({});
-			toast.success("Chiusura extra aggiunta correttamente.");
+			toast.success(
+				closureDates.length === 1
+					? "Chiusura extra aggiunta correttamente."
+					: "Chiusure extra aggiunte correttamente."
+			);
 		} catch (error) {
 			toast.error(getErrorMessage(error), { duration: ERROR_VISIBILITY_MS });
 		} finally {
@@ -656,19 +702,36 @@ export function SalonManagementPage() {
 						<div>
 							<h3 className="text-base font-semibold text-zinc-900">Nuova chiusura</h3>
 						</div>
-						<Field id="closure-date" label="Data" error={closureErrors.closure_date}>
-							<Input
-								id="closure-date"
-								type="date"
-								value={closureForm.closure_date}
-								onChange={(event) =>
-									setClosureForm((current) => ({
-										...current,
-										closure_date: event.target.value,
-									}))
-								}
-							/>
-						</Field>
+						<div className="grid gap-3 sm:grid-cols-2">
+							<Field id="closure-start-date" label="Da" error={closureErrors.start_date}>
+								<Input
+									id="closure-start-date"
+									type="date"
+									value={closureForm.start_date}
+									onChange={(event) =>
+										setClosureForm((current) => ({
+											...current,
+											start_date: event.target.value,
+											end_date: current.end_date || event.target.value,
+										}))
+									}
+								/>
+							</Field>
+							<Field id="closure-end-date" label="A" error={closureErrors.end_date}>
+								<Input
+									id="closure-end-date"
+									type="date"
+									value={closureForm.end_date}
+									min={closureForm.start_date || undefined}
+									onChange={(event) =>
+										setClosureForm((current) => ({
+											...current,
+											end_date: event.target.value,
+										}))
+									}
+								/>
+							</Field>
+						</div>
 						<Field id="closure-reason" label="Motivo">
 							<Input
 								id="closure-reason"
