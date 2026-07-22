@@ -218,19 +218,7 @@ export function SalonManagementPage() {
 
 			if (error) throw error;
 
-			if (!data || data.length === 0) {
-				const initialHours = defaultOpeningHours(salonId);
-				const { data: inserted, error: insertError } = await supabase
-					.from("salon_opening_hours")
-					.upsert(initialHours, { onConflict: "salon_id,day_of_week" })
-					.select("id, salon_id, day_of_week, is_open, morning_start, morning_end, afternoon_start, afternoon_end");
-
-				if (insertError) throw insertError;
-				setOpeningHours(normalizeOpeningHours(inserted ?? initialHours, salonId));
-				return;
-			}
-
-			setOpeningHours(normalizeOpeningHours(data, salonId));
+			setOpeningHours(normalizeOpeningHours(data ?? [], salonId));
 		},
 		[supabase]
 	);
@@ -316,11 +304,6 @@ export function SalonManagementPage() {
 
 		if (error) throw error;
 		const createdSalon = normalizeSalon(data);
-		const initialHours = defaultOpeningHours(createdSalon.id);
-		const { error: hoursError } = await supabase
-			.from("salon_opening_hours")
-			.upsert(initialHours, { onConflict: "salon_id,day_of_week" });
-		if (hoursError) throw hoursError;
 		setSalon(createdSalon);
 		setOpeningHours((current) => current.map((hour) => ({ ...hour, salon_id: createdSalon.id })));
 		return createdSalon.id;
@@ -370,17 +353,20 @@ export function SalonManagementPage() {
 
 	async function handleSaveOpeningHours() {
 		if (savingHours) return;
+		if (!salon.id) {
+			toast.error("Crea prima il salone, poi potrai salvare gli orari.", {
+				duration: ERROR_VISIBILITY_MS,
+			});
+			return;
+		}
 		const nextErrors = validateOpeningHours(openingHours);
 		setHoursErrors(nextErrors);
 		if (Object.keys(nextErrors).length > 0) return;
 
 		setSavingHours(true);
 		try {
-			const salonId = await ensureSalonRecord();
-			if (!salonId) return;
-
 			const rows = openingHours.map((hour) => ({
-				salon_id: salonId,
+				salon_id: salon.id,
 				day_of_week: hour.day_of_week,
 				is_open: hour.is_open,
 				morning_start: hour.is_open && hour.morning_start ? hour.morning_start : null,
@@ -396,7 +382,7 @@ export function SalonManagementPage() {
 				.select("id, salon_id, day_of_week, is_open, morning_start, morning_end, afternoon_start, afternoon_end");
 
 			if (error) throw error;
-			setOpeningHours(normalizeOpeningHours(data ?? rows, salonId));
+			setOpeningHours(normalizeOpeningHours(data ?? rows, salon.id));
 			toast.success("Orari di apertura salvati correttamente.");
 		} catch (error) {
 			toast.error(getErrorMessage(error), { duration: ERROR_VISIBILITY_MS });
@@ -425,6 +411,12 @@ export function SalonManagementPage() {
 	async function handleAddClosure(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (savingClosure) return;
+		if (!salon.id) {
+			toast.error("Crea prima il salone, poi potrai aggiungere chiusure.", {
+				duration: ERROR_VISIBILITY_MS,
+			});
+			return;
+		}
 
 		const nextErrors = validateClosureForm(closureForm);
 		setClosureErrors(nextErrors);
@@ -432,15 +424,12 @@ export function SalonManagementPage() {
 
 		setSavingClosure(true);
 		try {
-			const salonId = await ensureSalonRecord();
-			if (!salonId) return;
-
 			const closureDates = getDatesInRange(closureForm.start_date, closureForm.end_date);
 			const { data, error } = await supabase
 				.from("salon_closures")
 				.insert(
 					closureDates.map((closureDate) => ({
-						salon_id: salonId,
+						salon_id: salon.id,
 						closure_date: closureDate,
 						reason: closureForm.reason.trim() || null,
 						all_day: closureForm.all_day,
@@ -514,6 +503,8 @@ export function SalonManagementPage() {
 		);
 	}
 
+	const hasSalon = Boolean(salon.id);
+
 	return (
 		<section className="space-y-6">
 			<PageHeader />
@@ -580,9 +571,18 @@ export function SalonManagementPage() {
 				<CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
 					<div>
 						<CardTitle>Orari di apertura</CardTitle>
-						<CardDescription>Configura le fasce settimanali del salone.</CardDescription>
+						<CardDescription>
+							{hasSalon
+								? "Configura le fasce settimanali del salone."
+								: "Crea e salva prima il salone per poter configurare gli orari."}
+						</CardDescription>
 					</div>
-					<Button type="button" className="gap-2" disabled={savingHours} onClick={handleSaveOpeningHours}>
+					<Button
+						type="button"
+						className="gap-2"
+						disabled={!hasSalon || savingHours}
+						onClick={handleSaveOpeningHours}
+					>
 						<Save className="h-4 w-4" />
 						{savingHours ? "Salvataggio..." : "Salva orari"}
 					</Button>
@@ -591,7 +591,7 @@ export function SalonManagementPage() {
 					<div className="space-y-3">
 						{openingHours.map((hour) => {
 							const day = WEEK_DAYS.find((item) => item.value === hour.day_of_week);
-							const disabled = !hour.is_open;
+							const disabled = !hasSalon || !hour.is_open;
 
 							return (
 								<div
@@ -602,7 +602,8 @@ export function SalonManagementPage() {
 										<p className="font-semibold text-zinc-900">{day?.label}</p>
 										<div className="mt-0 flex items-center gap-2 lg:mt-3">
 											<Switch
-												checked={hour.is_open}
+											checked={hour.is_open}
+											disabled={!hasSalon}
 												onCheckedChange={(checked) =>
 													updateOpeningHour(hour.day_of_week, { is_open: checked })
 												}
@@ -659,7 +660,11 @@ export function SalonManagementPage() {
 			<Card>
 				<CardHeader>
 					<CardTitle>Chiusure extra</CardTitle>
-					<CardDescription>Registra ferie, festivita o chiusure parziali.</CardDescription>
+					<CardDescription>
+						{hasSalon
+							? "Registra ferie, festivita o chiusure parziali."
+							: "Crea e salva prima il salone per gestire le chiusure."}
+					</CardDescription>
 				</CardHeader>
 				<CardContent className="grid gap-6 xl:grid-cols-[1fr_24rem]">
 					<div className="space-y-3">
@@ -689,6 +694,7 @@ export function SalonManagementPage() {
 										size="icon"
 										aria-label="Elimina chiusura"
 										className="text-red-700 hover:bg-red-50"
+										disabled={!hasSalon}
 										onClick={() => setDeletingClosureId(closure.id)}
 									>
 										<Trash2 className="h-4 w-4" />
@@ -708,6 +714,7 @@ export function SalonManagementPage() {
 									id="closure-start-date"
 									type="date"
 									value={closureForm.start_date}
+									disabled={!hasSalon}
 									onChange={(event) =>
 										setClosureForm((current) => ({
 											...current,
@@ -723,6 +730,7 @@ export function SalonManagementPage() {
 									type="date"
 									value={closureForm.end_date}
 									min={closureForm.start_date || undefined}
+									disabled={!hasSalon}
 									onChange={(event) =>
 										setClosureForm((current) => ({
 											...current,
@@ -736,6 +744,7 @@ export function SalonManagementPage() {
 							<Input
 								id="closure-reason"
 								value={closureForm.reason}
+								disabled={!hasSalon}
 								onChange={(event) =>
 									setClosureForm((current) => ({ ...current, reason: event.target.value }))
 								}
@@ -744,6 +753,7 @@ export function SalonManagementPage() {
 						<div className="flex items-center gap-3">
 							<Checkbox
 								checked={closureForm.all_day}
+								disabled={!hasSalon}
 								onCheckedChange={(checked) =>
 									setClosureForm((current) => ({ ...current, all_day: checked }))
 								}
@@ -762,7 +772,7 @@ export function SalonManagementPage() {
 									id="closure-start"
 									type="time"
 									value={closureForm.start_time}
-									disabled={closureForm.all_day}
+									disabled={!hasSalon || closureForm.all_day}
 									onChange={(event) =>
 										setClosureForm((current) => ({
 											...current,
@@ -776,14 +786,14 @@ export function SalonManagementPage() {
 									id="closure-end"
 									type="time"
 									value={closureForm.end_time}
-									disabled={closureForm.all_day}
+									disabled={!hasSalon || closureForm.all_day}
 									onChange={(event) =>
 										setClosureForm((current) => ({ ...current, end_time: event.target.value }))
 									}
 								/>
 							</Field>
 						</div>
-						<Button type="submit" className="w-full gap-2" disabled={savingClosure}>
+						<Button type="submit" className="w-full gap-2" disabled={!hasSalon || savingClosure}>
 							<Plus className="h-4 w-4" />
 							{savingClosure ? "Salvataggio..." : "Aggiungi chiusura"}
 						</Button>

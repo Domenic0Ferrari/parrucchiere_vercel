@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { clearAdminSessionActivity } from "@/lib/admin-session-timeout";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useAuthSession } from "@/components/auth/employee-session-provider";
 
 const menuItems = [
 	{ href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -14,7 +15,6 @@ const menuItems = [
 	{ href: "/admin/categories", label: "Categorie", icon: Tags },
 	{ href: "/admin/customers", label: "Clienti", icon: Users },
 	{ href: "/admin/agenda", label: "Agenda", icon: CalendarDays },
-	{ href: "/admin/salon", label: "Salone", icon: Store },
 ];
 
 type AdminSidebarProps = {
@@ -30,6 +30,10 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
 	const pathname = usePathname();
 	const router = useRouter();
+	const { user } = useAuthSession();
+	const visibleMenuItems = user?.employee.role === "admin"
+		? [...menuItems, { href: "/admin/salon", label: "Salone", icon: Store }]
+		: menuItems;
 
 	const handleLogout = async () => {
 		const supabase = getSupabaseBrowserClient();
@@ -72,7 +76,7 @@ export default function AdminSidebar({
 			</div>
 
 			<nav className="flex-1 space-y-1 overflow-y-auto p-4">
-				{menuItems.map((item) => {
+				{visibleMenuItems.map((item) => {
 					const Icon = item.icon;
 					const isActive = pathname === item.href;
 
