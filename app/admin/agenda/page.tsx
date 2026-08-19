@@ -324,7 +324,7 @@ async function fetchAppointmentsForEmployee(
 ) {
 	const supabase = getSupabaseBrowserClient();
 	const { data, error } = await supabase
-		.from("appointements")
+		.from("appointments")
 		.select("id, customer_id, employee_id, service_id, start_time, end_time, status, final_price, final_duration_minutes, client_note, staff_note, appointment_source, created_at, updated_at")
 		.eq("employee_id", employeeId)
 		.eq("status", ACTIVE_APPOINTMENT_STATUS)
@@ -350,7 +350,7 @@ async function assertSlotAvailable({
 }) {
 	const supabase = getSupabaseBrowserClient();
 	const { data, error } = await supabase
-		.from("appointements")
+		.from("appointments")
 		.select("id, employee_id, start_time, end_time, status")
 		.eq("employee_id", employeeId)
 		.eq("status", ACTIVE_APPOINTMENT_STATUS);
@@ -938,7 +938,7 @@ export default function AdminAgendaPage() {
 		if (matchingCustomers.length === 0) return null;
 
 		const { data: appointmentData, error: appointmentError } = await supabase
-			.from("appointements")
+		.from("appointments")
 			.select("customer_id")
 			.in("customer_id", matchingCustomers.map((customer) => customer.id))
 			.eq("status", ACTIVE_APPOINTMENT_STATUS)
@@ -997,7 +997,7 @@ export default function AdminAgendaPage() {
 				appointmentPayload.staff_note = notes.trim();
 			}
 
-			const { error: insertError } = await supabase.from("appointements").insert(appointmentPayload);
+			const { error: insertError } = await supabase.from("appointments").insert(appointmentPayload);
 
 			if (insertError) throw insertError;
 			resetCreateForm();
@@ -1018,7 +1018,7 @@ export default function AdminAgendaPage() {
 		setError(null);
 		const supabase = getSupabaseBrowserClient();
 		const { error: deleteError } = await supabase
-			.from("appointements")
+			.from("appointments")
 			.update({ status: "cancelled", updated_at: new Date().toISOString() })
 			.eq("id", id);
 
@@ -1034,7 +1034,7 @@ export default function AdminAgendaPage() {
 		setError(null);
 		const supabase = getSupabaseBrowserClient();
 		const { error: updateError } = await supabase
-			.from("appointements")
+			.from("appointments")
 			.update({
 				staff_note: newNotes.trim() || null,
 				updated_at: new Date().toISOString(),
@@ -1076,7 +1076,7 @@ export default function AdminAgendaPage() {
 
 			const supabase = getSupabaseBrowserClient();
 			const { error: updateError } = await supabase
-				.from("appointements")
+				.from("appointments")
 				.update({
 					customer_id: editCustomerId,
 					service_id: editServiceId,

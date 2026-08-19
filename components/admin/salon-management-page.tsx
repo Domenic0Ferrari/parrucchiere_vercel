@@ -38,16 +38,17 @@ type OpeningHour = {
 	salon_id?: string;
 	day_of_week: number;
 	is_open: boolean;
-	morning_start: string;
-	morning_end: string;
-	afternoon_start: string;
-	afternoon_end: string;
+	open_time: string;
+	break_start: string;
+	break_end: string;
+	close_time: string;
 };
 
 type Closure = {
 	id: string;
 	salon_id: string;
-	closure_date: string;
+	start_date: string;
+	end_date: string;
 	reason: string | null;
 	all_day: boolean;
 	start_time: string | null;
@@ -92,10 +93,10 @@ function defaultOpeningHours(salonId?: string): OpeningHour[] {
 		salon_id: salonId,
 		day_of_week: day.value,
 		is_open: day.value <= 6,
-		morning_start: day.value <= 6 ? "09:00" : "",
-		morning_end: day.value <= 6 ? "13:00" : "",
-		afternoon_start: day.value <= 6 ? "15:00" : "",
-		afternoon_end: day.value <= 6 ? "19:00" : "",
+		open_time: day.value <= 6 ? "09:00" : "",
+		break_start: "",
+		break_end: "",
+		close_time: day.value <= 6 ? "18:00" : "",
 	}));
 }
 
@@ -117,46 +118,12 @@ function formatDate(value: string) {
 	return `${day}/${month}/${year}`;
 }
 
-function parseDateInput(value: string) {
-	const [year, month, day] = value.split("-").map(Number);
-	if (!year || !month || !day) return null;
-
-	const date = new Date(Date.UTC(year, month - 1, day));
-	const isSameDate =
-		date.getUTCFullYear() === year &&
-		date.getUTCMonth() === month - 1 &&
-		date.getUTCDate() === day;
-
-	return isSameDate ? date : null;
-}
-
-function formatDateInput(date: Date) {
-	const year = date.getUTCFullYear();
-	const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-	const day = String(date.getUTCDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-function getDatesInRange(startDate: string, endDate: string) {
-	const start = parseDateInput(startDate);
-	const end = parseDateInput(endDate);
-	if (!start || !end || start > end) return [];
-
-	const dates: string[] = [];
-	const current = new Date(start);
-	while (current <= end) {
-		dates.push(formatDateInput(current));
-		current.setUTCDate(current.getUTCDate() + 1);
-	}
-	return dates;
-}
-
 function buildSalonPayload(salon: Salon) {
 	return {
 		name: salon.name.trim(),
-		email: salon.email.trim() || null,
-		phone: salon.phone.trim() || null,
-		address: salon.address.trim() || null,
+		email: salon.email.trim(),
+		phone: salon.phone.trim(),
+		address: salon.address.trim(),
 		updated_at: new Date().toISOString(),
 	};
 }
@@ -187,16 +154,17 @@ export function SalonManagementPage() {
 		async (salonId: string) => {
 			const { data, error } = await supabase
 				.from("salon_closures")
-				.select("id, salon_id, closure_date, reason, all_day, start_time, end_time, created_at")
+				.select("id, salon_id, start_date, end_date, reason, all_day, start_time, end_time, created_at")
 				.eq("salon_id", salonId)
-				.order("closure_date", { ascending: true });
+				.order("start_date", { ascending: true });
 
 			if (error) throw error;
 			setClosures(
 				(data ?? []).map((row) => ({
 					id: String(row.id),
 					salon_id: String(row.salon_id),
-					closure_date: String(row.closure_date),
+					start_date: String(row.start_date),
+					end_date: String(row.end_date),
 					reason: row.reason ? String(row.reason) : null,
 					all_day: Boolean(row.all_day),
 					start_time: normalizeTime(row.start_time),
@@ -212,7 +180,7 @@ export function SalonManagementPage() {
 		async (salonId: string) => {
 			const { data, error } = await supabase
 				.from("salon_opening_hours")
-				.select("id, salon_id, day_of_week, is_open, morning_start, morning_end, afternoon_start, afternoon_end")
+				.select("id, salon_id, day_of_week, is_open, open_time, break_start, break_end, close_time")
 				.eq("salon_id", salonId)
 				.order("day_of_week", { ascending: true });
 
@@ -332,19 +300,15 @@ export function SalonManagementPage() {
 			if (!hour.is_open) continue;
 
 			const dayName = WEEK_DAYS.find((day) => day.value === hour.day_of_week)?.label ?? "Giorno";
-			const hasMorningValues = hour.morning_start || hour.morning_end;
-			const hasAfternoonValues = hour.afternoon_start || hour.afternoon_end;
-			const validMorning = isBefore(hour.morning_start, hour.morning_end);
-			const validAfternoon = isBefore(hour.afternoon_start, hour.afternoon_end);
+			if (!isBefore(hour.open_time, hour.close_time)) {
+				nextErrors[`hours-${hour.day_of_week}`] = `${dayName}: l'orario di chiusura deve essere successivo all'apertura.`;
+			}
 
-			if (hasMorningValues && !validMorning) {
-				nextErrors[`morning-${hour.day_of_week}`] = `${dayName}: fascia mattina non valida.`;
-			}
-			if (hasAfternoonValues && !validAfternoon) {
-				nextErrors[`afternoon-${hour.day_of_week}`] = `${dayName}: fascia pomeriggio non valida.`;
-			}
-			if (!validMorning && !validAfternoon) {
-				nextErrors[`day-${hour.day_of_week}`] = `${dayName}: inserisci almeno una fascia oraria valida.`;
+			const hasBreakValues = hour.break_start || hour.break_end;
+			if (hasBreakValues && (!isBefore(hour.break_start, hour.break_end)
+				|| !isBefore(hour.open_time, hour.break_start)
+				|| !isBefore(hour.break_end, hour.close_time))) {
+				nextErrors[`break-${hour.day_of_week}`] = `${dayName}: la pausa deve rientrare nell'orario di apertura.`;
 			}
 		}
 
@@ -369,17 +333,17 @@ export function SalonManagementPage() {
 				salon_id: salon.id,
 				day_of_week: hour.day_of_week,
 				is_open: hour.is_open,
-				morning_start: hour.is_open && hour.morning_start ? hour.morning_start : null,
-				morning_end: hour.is_open && hour.morning_end ? hour.morning_end : null,
-				afternoon_start: hour.is_open && hour.afternoon_start ? hour.afternoon_start : null,
-				afternoon_end: hour.is_open && hour.afternoon_end ? hour.afternoon_end : null,
+				open_time: hour.is_open ? hour.open_time : null,
+				break_start: hour.is_open && hour.break_start ? hour.break_start : null,
+				break_end: hour.is_open && hour.break_end ? hour.break_end : null,
+				close_time: hour.is_open ? hour.close_time : null,
 				updated_at: new Date().toISOString(),
 			}));
 
 			const { data, error } = await supabase
 				.from("salon_opening_hours")
 				.upsert(rows, { onConflict: "salon_id,day_of_week" })
-				.select("id, salon_id, day_of_week, is_open, morning_start, morning_end, afternoon_start, afternoon_end");
+				.select("id, salon_id, day_of_week, is_open, open_time, break_start, break_end, close_time");
 
 			if (error) throw error;
 			setOpeningHours(normalizeOpeningHours(data ?? rows, salon.id));
@@ -424,34 +388,26 @@ export function SalonManagementPage() {
 
 		setSavingClosure(true);
 		try {
-			const closureDates = getDatesInRange(closureForm.start_date, closureForm.end_date);
 			const { data, error } = await supabase
 				.from("salon_closures")
-				.insert(
-					closureDates.map((closureDate) => ({
-						salon_id: salon.id,
-						closure_date: closureDate,
-						reason: closureForm.reason.trim() || null,
-						all_day: closureForm.all_day,
-						start_time: closureForm.all_day ? null : closureForm.start_time,
-						end_time: closureForm.all_day ? null : closureForm.end_time,
-					}))
-				)
-				.select("id, salon_id, closure_date, reason, all_day, start_time, end_time, created_at");
+				.insert({
+					salon_id: salon.id,
+					start_date: closureForm.start_date,
+					end_date: closureForm.end_date,
+					reason: closureForm.reason.trim(),
+					all_day: closureForm.all_day,
+					start_time: closureForm.all_day ? null : closureForm.start_time,
+					end_time: closureForm.all_day ? null : closureForm.end_time,
+				})
+				.select("id, salon_id, start_date, end_date, reason, all_day, start_time, end_time, created_at");
 
 			if (error) throw error;
-			setClosures((current) =>
-				[...current, ...(data ?? []).map(normalizeClosure)].sort((a, b) =>
-					a.closure_date.localeCompare(b.closure_date)
-				)
-			);
+			setClosures((current) => [...current, ...(data ?? []).map(normalizeClosure)].sort((a, b) =>
+				a.start_date.localeCompare(b.start_date)
+			));
 			setClosureForm(emptyClosureForm);
 			setClosureErrors({});
-			toast.success(
-				closureDates.length === 1
-					? "Chiusura extra aggiunta correttamente."
-					: "Chiusure extra aggiunte correttamente."
-			);
+			toast.success("Chiusura extra aggiunta correttamente.");
 		} catch (error) {
 			toast.error(getErrorMessage(error), { duration: ERROR_VISIBILITY_MS });
 		} finally {
@@ -616,31 +572,31 @@ export function SalonManagementPage() {
 									</div>
 
 									<TimeRange
-										label="Mattina"
-										startId={`morning-start-${hour.day_of_week}`}
-										endId={`morning-end-${hour.day_of_week}`}
-										start={hour.morning_start}
-										end={hour.morning_end}
+										label="Orario"
+										startId={`open-${hour.day_of_week}`}
+										endId={`close-${hour.day_of_week}`}
+										start={hour.open_time}
+										end={hour.close_time}
 										disabled={disabled}
 										onStartChange={(value) =>
-											updateOpeningHour(hour.day_of_week, { morning_start: value })
+											updateOpeningHour(hour.day_of_week, { open_time: value })
 										}
 										onEndChange={(value) =>
-											updateOpeningHour(hour.day_of_week, { morning_end: value })
+											updateOpeningHour(hour.day_of_week, { close_time: value })
 										}
 									/>
 									<TimeRange
-										label="Pomeriggio"
-										startId={`afternoon-start-${hour.day_of_week}`}
-										endId={`afternoon-end-${hour.day_of_week}`}
-										start={hour.afternoon_start}
-										end={hour.afternoon_end}
+										label="Pausa (facoltativa)"
+										startId={`break-start-${hour.day_of_week}`}
+										endId={`break-end-${hour.day_of_week}`}
+										start={hour.break_start}
+										end={hour.break_end}
 										disabled={disabled}
 										onStartChange={(value) =>
-											updateOpeningHour(hour.day_of_week, { afternoon_start: value })
+											updateOpeningHour(hour.day_of_week, { break_start: value })
 										}
 										onEndChange={(value) =>
-											updateOpeningHour(hour.day_of_week, { afternoon_end: value })
+											updateOpeningHour(hour.day_of_week, { break_end: value })
 										}
 									/>
 									{Object.entries(hoursErrors)
@@ -680,7 +636,10 @@ export function SalonManagementPage() {
 									className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-4"
 								>
 									<div>
-										<p className="font-semibold text-zinc-900">{formatDate(closure.closure_date)}</p>
+										<p className="font-semibold text-zinc-900">
+											{formatDate(closure.start_date)}
+											{closure.end_date !== closure.start_date ? ` - ${formatDate(closure.end_date)}` : ""}
+										</p>
 										<p className="mt-1 text-sm text-zinc-600">
 											{closure.all_day
 												? "Tutto il giorno"
@@ -840,10 +799,10 @@ function normalizeOpeningHours(rows: Record<string, unknown>[], salonId: string)
 			salon_id: salonId,
 			day_of_week: Number(row.day_of_week),
 			is_open: Boolean(row.is_open),
-			morning_start: normalizeTime(row.morning_start as string | null),
-			morning_end: normalizeTime(row.morning_end as string | null),
-			afternoon_start: normalizeTime(row.afternoon_start as string | null),
-			afternoon_end: normalizeTime(row.afternoon_end as string | null),
+			open_time: normalizeTime(row.open_time as string | null),
+			break_start: normalizeTime(row.break_start as string | null),
+			break_end: normalizeTime(row.break_end as string | null),
+			close_time: normalizeTime(row.close_time as string | null),
 		};
 	});
 }
@@ -852,7 +811,8 @@ function normalizeClosure(row: Record<string, unknown>): Closure {
 	return {
 		id: String(row.id),
 		salon_id: String(row.salon_id),
-		closure_date: String(row.closure_date),
+		start_date: String(row.start_date),
+		end_date: String(row.end_date),
 		reason: row.reason ? String(row.reason) : null,
 		all_day: Boolean(row.all_day),
 		start_time: normalizeTime(row.start_time as string | null) || null,

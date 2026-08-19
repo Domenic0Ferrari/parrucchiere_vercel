@@ -109,7 +109,7 @@ async function getLastAppointment(customerId: string): Promise<LastAppointment |
 	if (!supabase) return null;
 
 	const { data, error } = await supabase
-		.from("appointements")
+		.from("appointments")
 		.select(
 			"id, service_id, employee_id, start_time, end_time, status, final_price, final_duration_minutes, client_note, staff_note, appointment_source"
 		)
