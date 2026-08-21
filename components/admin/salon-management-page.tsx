@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarOff, Plus, Save, Trash2 } from "lucide-react";
+import { CalendarOff, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,6 +118,17 @@ function formatDate(value: string) {
 	return `${day}/${month}/${year}`;
 }
 
+function getTodayInRome() {
+	const parts = new Intl.DateTimeFormat("en", {
+		timeZone: "Europe/Rome",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).formatToParts(new Date());
+	const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+	return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
 function buildSalonPayload(salon: Salon) {
 	return {
 		name: salon.name.trim(),
@@ -143,6 +154,7 @@ export function SalonManagementPage() {
 	const [savingSalon, setSavingSalon] = useState(false);
 	const [savingHours, setSavingHours] = useState(false);
 	const [savingClosure, setSavingClosure] = useState(false);
+	const [editingClosureId, setEditingClosureId] = useState<string | null>(null);
 	const [deletingClosureId, setDeletingClosureId] = useState<string | null>(null);
 	const [salonErrors, setSalonErrors] = useState<FieldErrors>({});
 	const [hoursErrors, setHoursErrors] = useState<FieldErrors>({});
@@ -372,7 +384,7 @@ export function SalonManagementPage() {
 		return nextErrors;
 	}
 
-	async function handleAddClosure(event: React.FormEvent<HTMLFormElement>) {
+	async function handleSaveClosure(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (savingClosure) return;
 		if (!salon.id) {
@@ -388,31 +400,79 @@ export function SalonManagementPage() {
 
 		setSavingClosure(true);
 		try {
-			const { data, error } = await supabase
-				.from("salon_closures")
-				.insert({
-					salon_id: salon.id,
-					start_date: closureForm.start_date,
-					end_date: closureForm.end_date,
-					reason: closureForm.reason.trim(),
-					all_day: closureForm.all_day,
-					start_time: closureForm.all_day ? null : closureForm.start_time,
-					end_time: closureForm.all_day ? null : closureForm.end_time,
-				})
-				.select("id, salon_id, start_date, end_date, reason, all_day, start_time, end_time, created_at");
+			const payload = {
+				start_date: closureForm.start_date,
+				end_date: closureForm.end_date,
+				reason: closureForm.reason.trim(),
+				all_day: closureForm.all_day,
+				start_time: closureForm.all_day ? null : closureForm.start_time,
+				end_time: closureForm.all_day ? null : closureForm.end_time,
+			};
+			const selectColumns = "id, salon_id, start_date, end_date, reason, all_day, start_time, end_time, created_at";
 
-			if (error) throw error;
-			setClosures((current) => [...current, ...(data ?? []).map(normalizeClosure)].sort((a, b) =>
-				a.start_date.localeCompare(b.start_date)
-			));
+			if (editingClosureId) {
+				const currentClosure = closures.find((closure) => closure.id === editingClosureId);
+				if (!currentClosure || currentClosure.start_date < getTodayInRome()) {
+					throw new Error("Le chiusure già iniziate o passate non possono essere modificate.");
+				}
+
+				const { data, error } = await supabase
+					.from("salon_closures")
+					.update(payload)
+					.eq("id", editingClosureId)
+					.eq("salon_id", salon.id)
+					.select(selectColumns)
+					.single();
+				if (error) throw error;
+
+				const updatedClosure = normalizeClosure(data);
+				setClosures((current) => current
+					.map((closure) => closure.id === updatedClosure.id ? updatedClosure : closure)
+					.sort((a, b) => a.start_date.localeCompare(b.start_date))
+				);
+				toast.success("Chiusura extra modificata correttamente.");
+			} else {
+				const { data, error } = await supabase
+					.from("salon_closures")
+					.insert({ salon_id: salon.id, ...payload })
+					.select(selectColumns);
+				if (error) throw error;
+
+				setClosures((current) => [...current, ...(data ?? []).map(normalizeClosure)].sort((a, b) =>
+					a.start_date.localeCompare(b.start_date)
+				));
+				toast.success("Chiusura extra aggiunta correttamente.");
+			}
+
 			setClosureForm(emptyClosureForm);
 			setClosureErrors({});
-			toast.success("Chiusura extra aggiunta correttamente.");
+			setEditingClosureId(null);
 		} catch (error) {
 			toast.error(getErrorMessage(error), { duration: ERROR_VISIBILITY_MS });
 		} finally {
 			setSavingClosure(false);
 		}
+	}
+
+	function startEditingClosure(closure: Closure) {
+		if (closure.start_date < getTodayInRome()) return;
+
+		setEditingClosureId(closure.id);
+		setClosureForm({
+			start_date: closure.start_date,
+			end_date: closure.end_date,
+			reason: closure.reason ?? "",
+			all_day: closure.all_day,
+			start_time: closure.start_time ?? "",
+			end_time: closure.end_time ?? "",
+		});
+		setClosureErrors({});
+	}
+
+	function cancelEditingClosure() {
+		setEditingClosureId(null);
+		setClosureForm(emptyClosureForm);
+		setClosureErrors({});
 	}
 
 	async function handleDeleteClosure() {
@@ -460,6 +520,8 @@ export function SalonManagementPage() {
 	}
 
 	const hasSalon = Boolean(salon.id);
+	const todayInRome = getTodayInRome();
+	const isEditingClosure = editingClosureId !== null;
 
 	return (
 		<section className="space-y-6">
@@ -630,7 +692,9 @@ export function SalonManagementPage() {
 								<p className="mt-2 text-sm text-zinc-600">Nessuna chiusura extra inserita.</p>
 							</div>
 						) : (
-							closures.map((closure) => (
+							closures.map((closure) => {
+								const canEdit = closure.start_date >= todayInRome;
+								return (
 								<div
 									key={closure.id}
 									className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-4"
@@ -647,25 +711,42 @@ export function SalonManagementPage() {
 											{closure.reason ? ` · ${closure.reason}` : ""}
 										</p>
 									</div>
-									<Button
-										type="button"
-										variant="outline"
-										size="icon"
-										aria-label="Elimina chiusura"
-										className="text-red-700 hover:bg-red-50"
-										disabled={!hasSalon}
-										onClick={() => setDeletingClosureId(closure.id)}
-									>
-										<Trash2 className="h-4 w-4" />
-									</Button>
+									<div className="flex gap-2">
+										{canEdit ? (
+											<Button
+												type="button"
+												variant="outline"
+												size="icon"
+												aria-label="Modifica chiusura"
+												disabled={!hasSalon || savingClosure}
+												onClick={() => startEditingClosure(closure)}
+											>
+												<Pencil className="h-4 w-4" />
+											</Button>
+										) : null}
+										<Button
+											type="button"
+											variant="outline"
+											size="icon"
+											aria-label="Elimina chiusura"
+											className="text-red-700 hover:bg-red-50"
+											disabled={!hasSalon}
+											onClick={() => setDeletingClosureId(closure.id)}
+										>
+											<Trash2 className="h-4 w-4" />
+										</Button>
+									</div>
 								</div>
-							))
+								);
+							})
 						)}
 					</div>
 
-					<form className="space-y-4 rounded-lg border border-zinc-200 p-4" onSubmit={handleAddClosure}>
+					<form className="space-y-4 rounded-lg border border-zinc-200 p-4" onSubmit={handleSaveClosure}>
 						<div>
-							<h3 className="text-base font-semibold text-zinc-900">Nuova chiusura</h3>
+							<h3 className="text-base font-semibold text-zinc-900">
+								{isEditingClosure ? "Modifica chiusura" : "Nuova chiusura"}
+							</h3>
 						</div>
 						<div className="grid gap-3 sm:grid-cols-2">
 							<Field id="closure-start-date" label="Da" error={closureErrors.start_date}>
@@ -752,10 +833,17 @@ export function SalonManagementPage() {
 								/>
 							</Field>
 						</div>
-						<Button type="submit" className="w-full gap-2" disabled={!hasSalon || savingClosure}>
-							<Plus className="h-4 w-4" />
-							{savingClosure ? "Salvataggio..." : "Aggiungi chiusura"}
-						</Button>
+						<div className="flex gap-3">
+							{isEditingClosure ? (
+								<Button type="button" variant="outline" className="flex-1" onClick={cancelEditingClosure} disabled={savingClosure}>
+									Annulla
+								</Button>
+							) : null}
+							<Button type="submit" className="flex-1 gap-2" disabled={!hasSalon || savingClosure}>
+								{isEditingClosure ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+								{savingClosure ? "Salvataggio..." : isEditingClosure ? "Salva modifica" : "Aggiungi chiusura"}
+							</Button>
+						</div>
 					</form>
 				</CardContent>
 			</Card>
