@@ -1000,6 +1000,7 @@ export default function AdminAgendaPage() {
 			const { error: insertError } = await supabase.from("appointments").insert(appointmentPayload);
 
 			if (insertError) throw insertError;
+			toast.success("Appuntamento salvato correttamente.", { duration: ERROR_VISIBILITY_MS });
 			resetCreateForm();
 			await refreshAppointments(selectedEmployeeId);
 		} catch (saveError) {
