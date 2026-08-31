@@ -4,7 +4,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react
 import { Temporal } from "temporal-polyfill";
 import { createDayView, createMonthView, createWeekView, DayFlowCalendar, useCalendarApp, ViewType } from "@dayflow/react";
 import "@dayflow/core/dist/styles.components.css";
-import { X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,6 +83,16 @@ const ACTIVE_APPOINTMENT_STATUS = "scheduled";
 const ERROR_VISIBILITY_MS = 4000;
 const FIELD_ERROR_VISIBILITY_MS = 2000;
 const EMPTY_DATE_TIME_LABEL = "--/--/---- --:--";
+
+function formatCalendarHeading(value: string, view: string) {
+	const date = Temporal.PlainDate.from(value);
+	const formatter = new Intl.DateTimeFormat("it-IT", {
+		month: "long",
+		year: "numeric",
+		...(view === ViewType.DAY ? { weekday: "long", day: "numeric" } : {}),
+	});
+	return formatter.format(new Date(`${date.toString()}T12:00:00`));
+}
 
 function toNullableNumber(value: unknown): number | null {
 	if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -405,7 +415,7 @@ export default function AdminAgendaPage() {
 	const [editStartAt, setEditStartAt] = useState("");
 	const [editEndAt, setEditEndAt] = useState("");
 	const [editNotes, setEditNotes] = useState("");
-	const [calendarView, setCalendarView] = useState<string>(ViewType.WEEK);
+	const [calendarView, setCalendarView] = useState<string>(ViewType.DAY);
 	const [calendarDate, setCalendarDate] = useState(() => Temporal.Now.plainDateISO().toString());
 
 	const employeesById = useMemo(() => new Map(employees.map((item) => [item.id, item])), [employees]);
@@ -647,10 +657,11 @@ export default function AdminAgendaPage() {
 			}),
 			createMonthView(),
 		],
-		defaultView: ViewType.WEEK,
+		defaultView: ViewType.DAY,
 		initialDate: new Date(`${calendarDate}T00:00:00`),
 		events: calendarEvents,
 		useCalendarHeader: false,
+		useEventDetailPanel: false,
 		callbacks: {
 			onDateChange: (date) => {
 				const next = Temporal.Instant.fromEpochMilliseconds(date.getTime()).toZonedDateTimeISO(TIME_ZONE).toPlainDate().toString();
@@ -1140,55 +1151,54 @@ export default function AdminAgendaPage() {
 				) : null}
 			</header>
 
-			<div className="overflow-hidden rounded-md border border-zinc-200 lg:h-[calc(100dvh-8.5rem)]">
-				<div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-3 py-2">
-					<div className="flex items-center gap-2">
-						<Button type="button" variant="outline" className="cursor-pointer text-zinc-900 hover:text-zinc-900" onClick={() => moveCalendarDate(-1)}>
-							Indietro
-						</Button>
-						<Button type="button" variant="outline" className="cursor-pointer text-zinc-900 hover:text-zinc-900" onClick={() => moveCalendarDate(1)}>
-							Avanti
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							className="cursor-pointer text-zinc-900 hover:text-zinc-900"
-							onClick={() => changeCalendarDate(Temporal.Now.plainDateISO(TIME_ZONE).toString())}
-						>
-							Oggi
-						</Button>
+			<div className="agenda-calendar overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]">
+				<div className="flex flex-wrap items-center gap-3 border-b border-zinc-200 px-4 py-3">
+					<div className="min-w-[13rem]">
+						<p className="text-lg font-semibold capitalize text-zinc-900">{formatCalendarHeading(calendarDate, calendarView)}</p>
+						{appointmentsLoading ? <p className="text-xs text-zinc-500">Aggiornamento appuntamenti...</p> : null}
 					</div>
-					<input
-						type="date"
-						value={calendarDate}
-						onChange={(e) => changeCalendarDate(e.target.value)}
-						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
-					/>
-					{appointmentsLoading ? <p className="text-sm text-zinc-500">Aggiornamento...</p> : null}
-					<div className="flex w-full flex-wrap items-center justify-start gap-2 lg:ml-auto lg:w-auto">
+					<div className="order-3 flex rounded-lg bg-zinc-100 p-1 sm:order-none sm:mx-auto">
 						<Button
 							type="button"
-							variant="outline"
-							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.DAY ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
+							variant="ghost"
+							className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.DAY ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
 							onClick={() => changeCalendarView(ViewType.DAY)}
 						>
 							Giorno
 						</Button>
 						<Button
 							type="button"
-							variant="outline"
-							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.WEEK ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
+							variant="ghost"
+							className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.WEEK ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
 							onClick={() => changeCalendarView(ViewType.WEEK)}
 						>
 							Settimana
 						</Button>
 						<Button
 							type="button"
-							variant="outline"
-							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.MONTH ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
+							variant="ghost"
+							className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.MONTH ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
 							onClick={() => changeCalendarView(ViewType.MONTH)}
 						>
 							Mese
+						</Button>
+					</div>
+					<div className="ml-auto flex items-center gap-2">
+						<input
+							type="date"
+							aria-label="Scegli data agenda"
+							value={calendarDate}
+							onChange={(e) => changeCalendarDate(e.target.value)}
+							className="h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-700"
+						/>
+						<Button type="button" variant="outline" size="icon" aria-label="Periodo precedente" className="h-9 w-9 cursor-pointer" onClick={() => moveCalendarDate(-1)}>
+							<ChevronLeft className="size-4" />
+						</Button>
+						<Button type="button" variant="outline" className="h-9 cursor-pointer px-3" onClick={() => changeCalendarDate(Temporal.Now.plainDateISO(TIME_ZONE).toString())}>
+							<CalendarDays className="mr-1.5 size-4" /> Oggi
+						</Button>
+						<Button type="button" variant="outline" size="icon" aria-label="Periodo successivo" className="h-9 w-9 cursor-pointer" onClick={() => moveCalendarDate(1)}>
+							<ChevronRight className="size-4" />
 						</Button>
 					</div>
 				</div>
@@ -1515,6 +1525,22 @@ export default function AdminAgendaPage() {
 				.df-calendar-container .df-week-time-grid-grid-inner,
 				.df-calendar-container .df-time-column {
 					min-height: calc(${CALENDAR_HOURS_COUNT} * var(--df-hour-height, ${CALENDAR_HOUR_HEIGHT}px));
+				}
+
+				/* Il pannello di riepilogo nativo occupa il lato destro: per l'agenda del salone usiamo solo la griglia. */
+				.agenda-calendar .df-event-detail-panel,
+				.agenda-calendar .df-sidebar,
+				.agenda-calendar .df-calendar-sidebar-aside,
+				.agenda-calendar .df-right-panel {
+					display: none !important;
+				}
+
+				.agenda-calendar .df-calendar-view-container {
+					width: 100%;
+				}
+
+				.agenda-calendar .df-day-content[data-switcher-mode] {
+					width: 100% !important;
 				}
 
 				.df-event {
