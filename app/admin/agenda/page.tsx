@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Temporal } from "temporal-polyfill";
 import { createDayView, createMonthView, createWeekView, DayFlowCalendar, useCalendarApp, ViewType } from "@dayflow/react";
 import "@dayflow/core/dist/styles.components.css";
@@ -69,6 +69,11 @@ type CreateFieldErrors = NewCustomerFieldErrors & {
 };
 type DuplicateAppointmentWarning = {
 	customerName: string;
+};
+type CalendarContextMenu = {
+	x: number;
+	y: number;
+	appointmentId?: string;
 };
 
 const TIME_ZONE = "Europe/Rome";
@@ -407,6 +412,9 @@ export default function AdminAgendaPage() {
 	const [endAt, setEndAt] = useState("");
 	const [notes, setNotes] = useState("");
 	const [duplicateAppointmentWarning, setDuplicateAppointmentWarning] = useState<DuplicateAppointmentWarning | null>(null);
+	const [createAppointmentOpen, setCreateAppointmentOpen] = useState(false);
+	const [calendarContextMenu, setCalendarContextMenu] = useState<CalendarContextMenu | null>(null);
+	const longPressTimer = useRef<number | null>(null);
 
 	const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 	const [editCustomerId, setEditCustomerId] = useState("");
@@ -671,16 +679,7 @@ export default function AdminAgendaPage() {
 				setCalendarView(view);
 			},
 			onEventClick: (event) => {
-				const eventId = String(event.id);
-				const current = appointments.find((item) => item.id === eventId);
-				if (!current) return;
-				setSelectedAppointmentId(eventId);
-				setEditCustomerId(current.customer_id);
-				setEditServiceId(current.service_id);
-				setEditEmployeeId(current.employee_id);
-				setEditStartAt(toInputDateTime(current.start_at));
-				setEditEndAt(toInputDateTime(current.end_at));
-				setEditNotes(current.notes ?? "");
+				openEditAppointment(String(event.id));
 			},
 		},
 	}, `${selectedEmployeeId}:${calendarEventsKey}`);
@@ -785,6 +784,27 @@ export default function AdminAgendaPage() {
 		setStartAt(nextStartAt);
 		setEndAt(addMinutesToInputDateTime(nextStartAt, servicesById.get(nextServiceId)?.durationMinutes ?? null));
 		setNotes("");
+	};
+
+	const openCreateAppointment = () => {
+		resetCreateForm();
+		const serviceId = services.length === 1 ? services[0].id : "";
+		const nextStartAt = `${calendarDate}T${String(AGENDA_START_HOUR).padStart(2, "0")}:00`;
+		setStartAt(nextStartAt);
+		setEndAt(addMinutesToInputDateTime(nextStartAt, servicesById.get(serviceId)?.durationMinutes ?? null));
+		setCreateAppointmentOpen(true);
+	};
+
+	const openEditAppointment = (appointmentId: string) => {
+		const current = appointments.find((item) => item.id === appointmentId);
+		if (!current) return;
+		setSelectedAppointmentId(appointmentId);
+		setEditCustomerId(current.customer_id);
+		setEditServiceId(current.service_id);
+		setEditEmployeeId(current.employee_id);
+		setEditStartAt(toInputDateTime(current.start_at));
+		setEditEndAt(toInputDateTime(current.end_at));
+		setEditNotes(current.notes ?? "");
 	};
 
 	const validateNewCustomerFields = () => {
@@ -1013,6 +1033,7 @@ export default function AdminAgendaPage() {
 			if (insertError) throw insertError;
 			toast.success("Appuntamento salvato correttamente.", { duration: ERROR_VISIBILITY_MS });
 			resetCreateForm();
+			setCreateAppointmentOpen(false);
 			await refreshAppointments(selectedEmployeeId);
 		} catch (saveError) {
 			showError(saveError, "Impossibile salvare l'appuntamento.");
@@ -1152,36 +1173,38 @@ export default function AdminAgendaPage() {
 			</header>
 
 			<div className="agenda-calendar overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]">
-				<div className="flex flex-wrap items-center gap-3 border-b border-zinc-200 px-4 py-3">
+				<div className="relative flex flex-wrap items-center gap-3 border-b border-zinc-200 px-4 py-3">
 					<div className="min-w-[13rem]">
 						<p className="text-lg font-semibold capitalize text-zinc-900">{formatCalendarHeading(calendarDate, calendarView)}</p>
 						{appointmentsLoading ? <p className="text-xs text-zinc-500">Aggiornamento appuntamenti...</p> : null}
 					</div>
-					<div className="order-3 flex rounded-lg bg-zinc-100 p-1 sm:order-none sm:mx-auto">
-						<Button
-							type="button"
-							variant="ghost"
-							className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.DAY ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
-							onClick={() => changeCalendarView(ViewType.DAY)}
-						>
-							Giorno
-						</Button>
-						<Button
-							type="button"
-							variant="ghost"
-							className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.WEEK ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
-							onClick={() => changeCalendarView(ViewType.WEEK)}
-						>
-							Settimana
-						</Button>
-						<Button
-							type="button"
-							variant="ghost"
-							className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.MONTH ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
-							onClick={() => changeCalendarView(ViewType.MONTH)}
-						>
-							Mese
-						</Button>
+					<div className="order-3 flex w-full justify-center lg:absolute lg:left-1/2 lg:w-auto lg:-translate-x-1/2">
+						<div className="flex rounded-lg bg-zinc-100 p-1">
+							<Button
+								type="button"
+								variant="ghost"
+								className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.DAY ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
+								onClick={() => changeCalendarView(ViewType.DAY)}
+							>
+								Giorno
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.WEEK ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
+								onClick={() => changeCalendarView(ViewType.WEEK)}
+							>
+								Settimana
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.MONTH ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
+								onClick={() => changeCalendarView(ViewType.MONTH)}
+							>
+								Mese
+							</Button>
+						</div>
 					</div>
 					<div className="ml-auto flex items-center gap-2">
 						<input
@@ -1202,16 +1225,55 @@ export default function AdminAgendaPage() {
 						</Button>
 					</div>
 				</div>
-				<div className="h-[600px] lg:h-full">
+				<div
+					className="h-[600px] lg:h-full"
+					onContextMenuCapture={(event) => {
+						event.preventDefault();
+						const appointmentElement = (event.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
+						setCalendarContextMenu({
+							x: event.clientX,
+							y: event.clientY,
+							appointmentId: appointmentElement?.getAttribute("data-event-id") ?? undefined,
+						});
+					}}
+					onTouchStart={(event) => {
+						const touch = event.touches[0];
+						if (!touch) return;
+						longPressTimer.current = window.setTimeout(() => {
+							const appointmentElement = (event.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
+							setCalendarContextMenu({
+								x: touch.clientX,
+								y: touch.clientY,
+								appointmentId: appointmentElement?.getAttribute("data-event-id") ?? undefined,
+							});
+						}, 600);
+					}}
+					onTouchEnd={() => {
+						if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+						longPressTimer.current = null;
+					}}
+					onTouchMove={() => {
+						if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+						longPressTimer.current = null;
+					}}
+				>
 					<DayFlowCalendar key={calendarEventsKey} calendar={calendar} />
 				</div>
 			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Aggiungi appuntamento</CardTitle>
-				</CardHeader>
-				<CardContent>
+			{createAppointmentOpen ? (
+				<div className="fixed inset-0 z-50 flex items-end bg-black/40 sm:items-center sm:justify-center sm:p-4">
+					<Card className="max-h-[92dvh] w-full overflow-y-auto rounded-b-none shadow-xl sm:max-w-2xl sm:rounded-xl">
+						<CardHeader className="flex flex-row items-start justify-between gap-3">
+							<div>
+								<CardTitle>Aggiungi appuntamento</CardTitle>
+								<p className="mt-1 text-sm text-zinc-600">Inserisci i dettagli della nuova prenotazione.</p>
+							</div>
+							<Button type="button" variant="ghost" size="icon" aria-label="Chiudi modale" className="cursor-pointer" onClick={() => setCreateAppointmentOpen(false)}>
+								<X className="h-5 w-5" />
+							</Button>
+						</CardHeader>
+						<CardContent>
 					<form onSubmit={onCreateAppointment} className="grid gap-3 md:grid-cols-2">
 						<div>
 							<label className="mb-1 block text-xs font-medium text-zinc-600">Cliente</label>
@@ -1363,7 +1425,33 @@ export default function AdminAgendaPage() {
 						</div>
 					</form>
 				</CardContent>
-			</Card>
+					</Card>
+				</div>
+			) : null}
+
+			{calendarContextMenu ? (
+				<>
+					<div className="fixed inset-0 z-[60]" aria-hidden="true" onClick={() => setCalendarContextMenu(null)} />
+					<div
+						className="fixed z-[61] min-w-52 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg"
+						style={{ left: calendarContextMenu.x, top: calendarContextMenu.y }}
+					>
+						<Button
+							type="button"
+							variant="ghost"
+							className="w-full justify-start"
+							onClick={() => {
+								const appointmentId = calendarContextMenu.appointmentId;
+								setCalendarContextMenu(null);
+								if (appointmentId) openEditAppointment(appointmentId);
+								else openCreateAppointment();
+							}}
+						>
+							{calendarContextMenu.appointmentId ? "Modifica appuntamento" : "Nuovo appuntamento"}
+						</Button>
+					</div>
+				</>
+			) : null}
 
 			<Card>
 				<CardHeader>
@@ -1541,6 +1629,11 @@ export default function AdminAgendaPage() {
 
 				.agenda-calendar .df-day-content[data-switcher-mode] {
 					width: 100% !important;
+				}
+
+				/* Il periodo selezionato è già mostrato nella barra dell'agenda. */
+				.agenda-calendar .df-view-header-container {
+					display: none;
 				}
 
 				.df-event {
