@@ -21,9 +21,9 @@ function buttonVariants({
 }) {
 	const variantClass =
 		variant === "outline"
-			? "border border-zinc-300 bg-white hover:bg-zinc-100"
+			? "border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-100"
 			: variant === "ghost"
-				? "hover:bg-zinc-100"
+				? "text-zinc-900 hover:bg-zinc-100"
 				: "bg-zinc-900 text-white hover:bg-zinc-800";
 
 	const sizeClass =
