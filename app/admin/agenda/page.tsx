@@ -1081,29 +1081,6 @@ export default function AdminAgendaPage() {
 		setAppointments((prev) => prev.filter((item) => item.id !== id));
 	};
 
-	const onSaveNotes = async (id: string, newNotes: string) => {
-		setError(null);
-		const supabase = getSupabaseBrowserClient();
-		const { error: updateError } = await supabase
-			.from("appointments")
-			.update({
-				staff_note: newNotes.trim() || null,
-				updated_at: new Date().toISOString(),
-			})
-			.eq("id", id);
-
-		if (updateError) {
-			showError(updateError, "Impossibile salvare le note.");
-			return;
-		}
-
-		setAppointments((prev) =>
-			prev.map((item) =>
-				item.id === id ? { ...item, notes: newNotes.trim() || null } : item
-			)
-		);
-	};
-
 	const onSaveAppointmentFromModal = async () => {
 		if (!selectedAppointmentId) return;
 		setSaving(true);
@@ -1162,12 +1139,12 @@ export default function AdminAgendaPage() {
 			{error ? <p className="text-sm text-red-600">{error}</p> : null}
 
 			<header className="flex flex-wrap items-end justify-between gap-3">
-				<div className="space-y-0.5">
+				{/* <div className="space-y-0.5">
 					<h1 className="text-2xl font-semibold text-zinc-900">Agenda</h1>
 					<p className="text-sm text-zinc-600">
 						{loading ? "Caricamento dati agenda..." : `Agenda di ${activeEmployeeName || "addetto"}`}
 					</p>
-				</div>
+				</div> */}
 
 				{showEmployeeSelect ? (
 					<div className="w-full sm:w-64">
@@ -1190,7 +1167,10 @@ export default function AdminAgendaPage() {
 				) : null}
 			</header>
 
-			<div className="agenda-calendar overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]">
+			<div className={cn(
+				"agenda-calendar overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]",
+				calendarView === ViewType.DAY && "agenda-calendar--day"
+			)}>
 				<div className="relative flex flex-wrap items-center gap-3 border-b border-zinc-200 px-4 py-3">
 					<div className="min-w-[13rem]">
 						<p className="text-lg font-semibold capitalize text-zinc-900">{formatCalendarHeading(calendarDate, calendarView)}</p>
@@ -1244,7 +1224,10 @@ export default function AdminAgendaPage() {
 					</div>
 				</div>
 				<div
-					className="h-[600px] lg:h-full"
+					className={cn(
+						calendarView === ViewType.DAY ? "h-auto md:h-[600px]" : "h-[600px]",
+						"lg:h-full"
+					)}
 					onContextMenuCapture={(event) => {
 						event.preventDefault();
 						const appointmentElement = (event.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
@@ -1485,30 +1468,6 @@ export default function AdminAgendaPage() {
 				</>
 			) : null}
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Elenco appuntamenti</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{loading || appointmentsLoading ? (
-						<p className="text-sm text-zinc-600">Caricamento appuntamenti...</p>
-					) : appointments.length === 0 ? (
-						<p className="text-sm text-zinc-600">Nessun appuntamento presente.</p>
-					) : (
-						<div className="space-y-3">
-							{appointments.map((item) => (
-								<AppointmentRowItem
-									key={item.id}
-									item={item}
-									onDelete={onDeleteAppointment}
-									onSaveNotes={onSaveNotes}
-								/>
-							))}
-						</div>
-					)}
-				</CardContent>
-			</Card>
-
 			{selectedAppointment ? (
 				<div className="fixed inset-0 z-50 flex items-end bg-zinc-950/45 backdrop-blur-[2px] sm:items-center sm:justify-center sm:p-6">
 					<Card
@@ -1664,12 +1623,44 @@ export default function AdminAgendaPage() {
 					min-height: calc(${CALENDAR_HOURS_COUNT} * var(--df-hour-height, ${CALENDAR_HOUR_HEIGHT}px));
 				}
 
-				/* Il pannello di riepilogo nativo occupa il lato destro: per l'agenda del salone usiamo solo la griglia. */
+				/* Manteniamo nascosti i pannelli di gestione nativi non usati dall'agenda. */
 				.agenda-calendar .df-event-detail-panel,
 				.agenda-calendar .df-sidebar,
-				.agenda-calendar .df-calendar-sidebar-aside,
+				.agenda-calendar .df-calendar-sidebar-aside {
+					display: none !important;
+				}
+
 				.agenda-calendar .df-right-panel {
 					display: none !important;
+				}
+
+				.agenda-calendar--day .df-right-panel {
+					background: #fafafa;
+					border-left: 1px solid #e4e4e7;
+					display: block !important;
+					width: 32%;
+				}
+
+				.agenda-calendar--day .df-mini-calendar {
+					background: #ffffff;
+					border-bottom: 1px solid #e4e4e7;
+				}
+
+				.agenda-calendar--day .df-right-panel-events-inner {
+					padding: 1rem;
+				}
+
+				.agenda-calendar--day .df-right-panel-date-heading {
+					background: #fafafa;
+					color: #18181b;
+					text-transform: capitalize;
+				}
+
+				.agenda-calendar--day .df-right-panel-event-card {
+					border: 1px solid rgba(99, 102, 241, 0.24);
+					border-radius: 0.65rem;
+					box-shadow: 0 2px 5px rgba(49, 46, 129, 0.08);
+					overflow: hidden;
 				}
 
 				.agenda-calendar .df-calendar-view-container {
@@ -1678,6 +1669,44 @@ export default function AdminAgendaPage() {
 
 				.agenda-calendar .df-day-content[data-switcher-mode] {
 					width: 100% !important;
+				}
+
+				.agenda-calendar--day .df-day-content[data-switcher-mode] {
+					width: 68% !important;
+				}
+
+				@media (max-width: 767px) {
+					.agenda-calendar--day .df-calendar-wrapper,
+					.agenda-calendar--day .df-calendar-container,
+					.agenda-calendar--day .df-calendar,
+					.agenda-calendar--day .df-day-view {
+						height: auto !important;
+					}
+
+					.agenda-calendar--day .df-day-view {
+						flex-direction: column;
+					}
+
+					.agenda-calendar--day .df-day-content[data-switcher-mode] {
+						flex: none;
+						height: 600px;
+						width: 100% !important;
+					}
+
+					.agenda-calendar--day .df-right-panel {
+						border-left: 0;
+						border-top: 1px solid #e4e4e7;
+						height: auto;
+						width: 100%;
+					}
+
+					.agenda-calendar--day .df-right-panel-layout {
+						height: auto;
+					}
+
+					.agenda-calendar--day .df-right-panel-events {
+						overflow: visible;
+					}
 				}
 
 				/* Il periodo selezionato è già mostrato nella barra dell'agenda. */
@@ -1782,49 +1811,6 @@ function ReadonlyDateTimeField({
 			<div className="flex h-11 items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-sm font-medium text-zinc-600">
 				<Clock3 className="size-4 shrink-0 text-zinc-400" />
 				{value ? toInputDateTime(value).replace("T", " ") : EMPTY_DATE_TIME_LABEL}
-			</div>
-		</div>
-	);
-}
-
-function AppointmentRowItem({
-	item,
-	onDelete,
-	onSaveNotes,
-}: {
-	item: AppointmentRow;
-	onDelete: (id: string) => Promise<void>;
-	onSaveNotes: (id: string, notes: string) => Promise<void>;
-}) {
-	const [noteDraft, setNoteDraft] = useState(item.notes ?? "");
-
-	return (
-		<div className="rounded-lg border border-zinc-200 p-3">
-			<p className="text-sm font-semibold text-zinc-900">{item.service_name} - {item.customer_name}</p>
-			<p className="mt-1 text-xs text-zinc-600">
-				{toInputDateTime(item.start_at).replace("T", " ")} - {toInputDateTime(item.end_at).replace("T", " ")}
-				{item.operator_name ? ` - ${item.operator_name}` : ""}
-			</p>
-			<div className="mt-2 flex flex-col gap-2 md:flex-row">
-				<input
-					value={noteDraft}
-					onChange={(e) => setNoteDraft(e.target.value)}
-					placeholder="Aggiungi note staff"
-					className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-				/>
-				<div className="flex gap-2">
-					<Button type="button" variant="outline" onClick={() => void onSaveNotes(item.id, noteDraft)}>
-						Salva note
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						className="border-red-300 text-red-700 hover:bg-red-50"
-						onClick={() => void onDelete(item.id)}
-					>
-						Cancella
-					</Button>
-				</div>
 			</div>
 		</div>
 	);
