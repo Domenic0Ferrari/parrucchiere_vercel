@@ -2,6 +2,7 @@
 
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Temporal } from "temporal-polyfill";
+import { it } from "date-fns/locale";
 import { createDayView, createMonthView, createWeekView, DayFlowCalendar, useCalendarApp, ViewType } from "@dayflow/react";
 import "@dayflow/core/dist/styles.components.css";
 import { CalendarDays, CalendarPlus2, ChevronLeft, ChevronRight, Clock3, Pencil, Save, Trash2, X } from "lucide-react";
@@ -18,6 +19,9 @@ import {
 } from "@/components/ui/select";
 import { useAuthSession } from "@/components/auth/employee-session-provider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { isSalonIntervalAvailable, type OpeningHour as SalonOpeningHour, type SalonClosure } from "@/lib/salon-availability";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 type EmployeeOption = {
@@ -78,7 +82,7 @@ type CalendarContextMenu = {
 
 const TIME_ZONE = "Europe/Rome";
 const AGENDA_START_HOUR = 8;
-const AGENDA_END_HOUR = 20;
+const ADMIN_OVERTIME_MARGIN_MINUTES = 60;
 const CALENDAR_FIRST_HOUR = 0;
 const CALENDAR_LAST_HOUR = 24;
 const CALENDAR_HOUR_HEIGHT = 64;
@@ -182,6 +186,14 @@ function getInputDatePart(value: string) {
 	return value.split("T")[0] ?? "";
 }
 
+function toCalendarDate(value: string) {
+	return Temporal.PlainDate.from(value).toZonedDateTime(TIME_ZONE).toInstant().epochMilliseconds;
+}
+
+function fromCalendarDate(value: Date) {
+	return Temporal.Instant.fromEpochMilliseconds(value.getTime()).toZonedDateTimeISO(TIME_ZONE).toPlainDate().toString();
+}
+
 function updateInputDateTime(
 	value: string,
 	partial: { date?: string; time?: string }
@@ -261,23 +273,37 @@ function buildTimeSlots({
 	durationMinutes,
 	employeeId,
 	appointments,
+	openingHours,
+	closures,
+	allowOverride = false,
 	excludeAppointmentId,
 }: {
 	date: string;
 	durationMinutes: number | null;
 	employeeId: string;
 	appointments: AppointmentRow[];
+	openingHours: SalonOpeningHour[];
+	closures: SalonClosure[];
+	allowOverride?: boolean;
 	excludeAppointmentId?: string | null;
 }) {
 	if (!date) return [];
 
-	const dayStart = Temporal.PlainDateTime.from(`${date}T${String(AGENDA_START_HOUR).padStart(2, "0")}:00`);
-	const dayEnd = Temporal.PlainDateTime.from(`${date}T${String(AGENDA_END_HOUR).padStart(2, "0")}:00`);
+	const isoDayOfWeek = Temporal.PlainDate.from(date).dayOfWeek;
+	const dayHours = openingHours.find((item) => item.day_of_week === isoDayOfWeek);
+	if ((!dayHours?.is_open || !dayHours.open_time || !dayHours.close_time) && !allowOverride) return [];
+	const openTime = dayHours?.is_open && dayHours.open_time ? dayHours.open_time.slice(0, 5) : `${String(AGENDA_START_HOUR).padStart(2, "0")}:00`;
+	const closeTime = dayHours?.is_open && dayHours.close_time ? dayHours.close_time.slice(0, 5) : "20:00";
+
+	const openingStart = Temporal.PlainDateTime.from(`${date}T${openTime}`);
+	const closingEnd = Temporal.PlainDateTime.from(`${date}T${closeTime}`);
+	const dayStart = allowOverride ? openingStart.subtract({ minutes: ADMIN_OVERTIME_MARGIN_MINUTES }) : openingStart;
+	const dayEnd = allowOverride ? closingEnd.add({ minutes: ADMIN_OVERTIME_MARGIN_MINUTES }) : closingEnd;
 	const slots: Array<{ value: string; label: string; disabled: boolean }> = [];
 
 	for (
 		let cursor = dayStart;
-		Temporal.PlainDateTime.compare(cursor, dayEnd) <= 0;
+		Temporal.PlainDateTime.compare(cursor, dayEnd) < 0;
 		cursor = cursor.add({ minutes: 15 })
 	) {
 		const startAt = cursor.toString({ smallestUnit: "minute" });
@@ -285,8 +311,15 @@ function buildTimeSlots({
 			? cursor.add({ minutes: durationMinutes }).toString({ smallestUnit: "minute" })
 			: "";
 		const label = cursor.toPlainTime().toString({ smallestUnit: "minute" });
-		const endsAfterAgenda = !endAt || compareDateTimes(endAt, dayEnd.toString({ smallestUnit: "minute" })) > 0;
-		const overlaps = !endsAfterAgenda && hasAppointmentOverlap({
+		const endsAfterDay = !endAt || compareDateTimes(endAt, dayEnd.toString({ smallestUnit: "minute" })) > 0;
+		const withinSalonHours = !endsAfterDay && isSalonIntervalAvailable({
+			date,
+			start: label,
+			end: endAt.split("T")[1] ?? "",
+			openingHours,
+			closures,
+		});
+		const overlaps = !endsAfterDay && hasAppointmentOverlap({
 			appointments,
 			employeeId,
 			startAt,
@@ -297,21 +330,14 @@ function buildTimeSlots({
 		slots.push({
 			value: label,
 			label,
-			disabled: !durationMinutes || durationMinutes <= 0 || endsAfterAgenda || overlaps,
+			disabled: !durationMinutes || durationMinutes <= 0 || endsAfterDay || overlaps || (!allowOverride && !withinSalonHours),
 		});
 	}
 
 	return slots;
 }
 
-function isWithinAgendaHours(start: Temporal.PlainDateTime, end: Temporal.PlainDateTime) {
-	const agendaStart = Temporal.PlainTime.from({ hour: AGENDA_START_HOUR });
-	const agendaEnd = Temporal.PlainTime.from({ hour: AGENDA_END_HOUR });
-	return Temporal.PlainTime.compare(start.toPlainTime(), agendaStart) >= 0
-		&& Temporal.PlainTime.compare(end.toPlainTime(), agendaEnd) <= 0;
-}
-
-function validateTimes(startAt: string, endAt: string) {
+function validateTimes(startAt: string, endAt: string, openingHours: SalonOpeningHour[], closures: SalonClosure[]) {
 	if (!getInputDatePart(startAt)) {
 		return "Inserisci la data di inizio appuntamento.";
 	}
@@ -324,8 +350,17 @@ function validateTimes(startAt: string, endAt: string) {
 	if (Temporal.PlainDateTime.compare(end, start) <= 0) {
 		return "L'orario di fine deve essere successivo all'orario di inizio.";
 	}
-	if (!isWithinAgendaHours(start, end)) {
-		return `Gli appuntamenti devono essere compresi tra le ${String(AGENDA_START_HOUR).padStart(2, "0")}:00 e le ${String(AGENDA_END_HOUR).padStart(2, "0")}:00.`;
+	if (Temporal.PlainDate.compare(start.toPlainDate(), end.toPlainDate()) !== 0) {
+		return "Un appuntamento deve iniziare e finire nella stessa giornata.";
+	}
+	if (!isSalonIntervalAvailable({
+		date: start.toPlainDate().toString(),
+		start: start.toPlainTime().toString({ smallestUnit: "minute" }),
+		end: end.toPlainTime().toString({ smallestUnit: "minute" }),
+		openingHours,
+		closures,
+	})) {
+		return "L'appuntamento è fuori dall'orario di apertura, durante una pausa o in una chiusura del salone.";
 	}
 	return null;
 }
@@ -395,6 +430,8 @@ export default function AdminAgendaPage() {
 	const [employees, setEmployees] = useState<EmployeeOption[]>([]);
 	const [customers, setCustomers] = useState<CustomerOption[]>([]);
 	const [services, setServices] = useState<ServiceOption[]>([]);
+	const [openingHours, setOpeningHours] = useState<SalonOpeningHour[]>([]);
+	const [closures, setClosures] = useState<SalonClosure[]>([]);
 	const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
 	const [loading, setLoading] = useState(true);
 	const [appointmentsLoading, setAppointmentsLoading] = useState(false);
@@ -412,6 +449,7 @@ export default function AdminAgendaPage() {
 	const [startAt, setStartAt] = useState(getDefaultStartDateTime);
 	const [endAt, setEndAt] = useState("");
 	const [notes, setNotes] = useState("");
+	const [allowScheduleOverride, setAllowScheduleOverride] = useState(false);
 	const [duplicateAppointmentWarning, setDuplicateAppointmentWarning] = useState<DuplicateAppointmentWarning | null>(null);
 	const [createAppointmentOpen, setCreateAppointmentOpen] = useState(false);
 	const [calendarContextMenu, setCalendarContextMenu] = useState<CalendarContextMenu | null>(null);
@@ -520,7 +558,7 @@ export default function AdminAgendaPage() {
 			setError(null);
 			try {
 				const supabase = getSupabaseBrowserClient();
-				const [employeesResult, servicesResult, customersResult] = await Promise.all([
+				const [employeesResult, servicesResult, customersResult, salonResult] = await Promise.all([
 					supabase
 						.from("employees")
 						.select("id, name, role, is_active")
@@ -534,11 +572,20 @@ export default function AdminAgendaPage() {
 						.from("customers")
 						.select("id, name, phone, email, note")
 						.order("name", { ascending: true }),
+					supabase.from("salon").select("id").order("created_at", { ascending: true }).limit(1).maybeSingle(),
 				]);
 
 				if (employeesResult.error) throw employeesResult.error;
 				if (servicesResult.error) throw servicesResult.error;
 				if (customersResult.error) throw customersResult.error;
+				if (salonResult.error) throw salonResult.error;
+				const salonId = salonResult.data?.id ? String(salonResult.data.id) : "";
+				const [hoursResult, closuresResult] = salonId ? await Promise.all([
+					supabase.from("salon_opening_hours").select("day_of_week, is_open, open_time, break_start, break_end, close_time").eq("salon_id", salonId),
+					supabase.from("salon_closures").select("start_date, end_date, all_day, start_time, end_time").eq("salon_id", salonId),
+				]) : [{ data: [], error: null }, { data: [], error: null }];
+				if (hoursResult.error) throw hoursResult.error;
+				if (closuresResult.error) throw closuresResult.error;
 				if (cancelled) return;
 
 				const employeeRows = ((employeesResult.data ?? []) as RawRow[]).map(normalizeEmployee).filter((item) => item.id);
@@ -565,6 +612,8 @@ export default function AdminAgendaPage() {
 				setEmployees(employeesWithCurrent);
 				setServices(serviceRows);
 				setCustomers(customerRows);
+				setOpeningHours((hoursResult.data ?? []) as SalonOpeningHour[]);
+				setClosures((closuresResult.data ?? []) as SalonClosure[]);
 				setSelectedEmployeeId(nextEmployeeId);
 				if (serviceRows.length === 1) {
 					const defaultStartAt = getDefaultStartDateTime();
@@ -631,8 +680,11 @@ export default function AdminAgendaPage() {
 			durationMinutes: servicesById.get(selectedServiceId)?.durationMinutes ?? null,
 			employeeId: selectedEmployeeId,
 			appointments,
+			openingHours,
+			closures,
+			allowOverride: isAdmin && allowScheduleOverride,
 		}),
-		[appointments, selectedEmployeeId, selectedServiceId, servicesById, startAt]
+		[allowScheduleOverride, appointments, closures, isAdmin, openingHours, selectedEmployeeId, selectedServiceId, servicesById, startAt]
 	);
 	const editTimeSlots = useMemo(
 		() => buildTimeSlots({
@@ -640,9 +692,12 @@ export default function AdminAgendaPage() {
 			durationMinutes: servicesById.get(editServiceId)?.durationMinutes ?? null,
 			employeeId: editEmployeeId,
 			appointments,
+			openingHours,
+			closures,
+			allowOverride: isAdmin && allowScheduleOverride,
 			excludeAppointmentId: selectedAppointmentId,
 		}),
-		[appointments, editEmployeeId, editServiceId, editStartAt, selectedAppointmentId, servicesById]
+		[allowScheduleOverride, appointments, closures, editEmployeeId, editServiceId, editStartAt, isAdmin, openingHours, selectedAppointmentId, servicesById]
 	);
 
 	const calendar = useCalendarApp({
@@ -795,6 +850,7 @@ export default function AdminAgendaPage() {
 		setStartAt(nextStartAt);
 		setEndAt(addMinutesToInputDateTime(nextStartAt, servicesById.get(nextServiceId)?.durationMinutes ?? null));
 		setNotes("");
+		setAllowScheduleOverride(false);
 	};
 
 	const openCreateAppointment = () => {
@@ -816,6 +872,7 @@ export default function AdminAgendaPage() {
 		setEditStartAt(toInputDateTime(current.start_at));
 		setEditEndAt(toInputDateTime(current.end_at));
 		setEditNotes(current.notes ?? "");
+		setAllowScheduleOverride(false);
 	};
 
 	const validateNewCustomerFields = () => {
@@ -1010,7 +1067,7 @@ export default function AdminAgendaPage() {
 			if (!validateCreateAppointmentFields()) return;
 			if (!validateNewCustomerFields()) return;
 
-			const timeError = validateTimes(startAt, endAt);
+			const timeError = allowScheduleOverride && isAdmin ? null : validateTimes(startAt, endAt, openingHours, closures);
 			if (timeError) throw new Error(timeError);
 
 			if (!skipDuplicateCheck) {
@@ -1091,7 +1148,7 @@ export default function AdminAgendaPage() {
 			if (!editServiceId) throw new Error("Seleziona un servizio.");
 			if (!editEmployeeId) throw new Error("Seleziona un addetto.");
 
-			const timeError = validateTimes(editStartAt, editEndAt);
+			const timeError = allowScheduleOverride && isAdmin ? null : validateTimes(editStartAt, editEndAt, openingHours, closures);
 			if (timeError) throw new Error(timeError);
 
 			const service = servicesById.get(editServiceId);
@@ -1431,6 +1488,7 @@ export default function AdminAgendaPage() {
 									</label>
 									<input id="appointment-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Aggiungi una nota facoltativa" className="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none transition placeholder:text-zinc-400 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200" />
 								</div>
+								{isAdmin ? <label className="flex items-center gap-2 text-sm text-zinc-600 md:col-span-2"><input type="checkbox" checked={allowScheduleOverride} onChange={(event) => setAllowScheduleOverride(event.target.checked)} /> Consenti eccezione a orari, pause e chiusure</label> : null}
 								<div className="-mx-5 -mb-5 mt-1 flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-5 py-4 md:col-span-2 sm:-mx-6 sm:-mb-6 sm:px-6">
 									<Button type="button" variant="ghost" className="text-zinc-600" onClick={() => setCreateAppointmentOpen(false)}>Annulla</Button>
 									<Button type="submit" className="min-w-40 gap-2 rounded-xl shadow-sm" disabled={saving || loading}>
@@ -1571,6 +1629,7 @@ export default function AdminAgendaPage() {
 								</label>
 								<input id="edit-appointment-notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Aggiungi una nota facoltativa" className="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200" />
 							</div>
+							{isAdmin ? <label className="flex items-center gap-2 text-sm text-zinc-600 md:col-span-2"><input type="checkbox" checked={allowScheduleOverride} onChange={(event) => setAllowScheduleOverride(event.target.checked)} /> Consenti eccezione a orari, pause e chiusure</label> : null}
 						</div>
 
 						<div className="-mx-5 -mb-5 mt-6 flex flex-col-reverse gap-3 border-t border-zinc-200 bg-zinc-50 px-5 py-4 sm:-mx-6 sm:-mb-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -1739,6 +1798,7 @@ function SlotDateTimeFields({
 }) {
 	const date = getInputDatePart(value);
 	const selectedTime = value.split("T")[1] ?? "";
+	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
 	return (
 		<div className={cn("rounded-2xl border bg-zinc-50/70 p-4 md:col-span-2", hasError ? "border-red-300" : "border-zinc-200")}>
@@ -1751,17 +1811,33 @@ function SlotDateTimeFields({
 					<label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-500" htmlFor={`${idPrefix}-date`}>
 						Data
 					</label>
-					<input
-						id={`${idPrefix}-date`}
-						required
-						type="date"
-						value={date}
-						onChange={(event) => onChange({ date: event.target.value })}
-						className={cn(
-							"h-11 w-full self-start rounded-xl border bg-white px-3 text-sm text-zinc-900 outline-none transition focus:ring-2 focus:ring-zinc-200",
-							hasError ? "border-red-500" : "border-zinc-300"
-						)}
-					/>
+					<Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+						<PopoverTrigger asChild>
+							<Button
+								id={`${idPrefix}-date`}
+								type="button"
+								variant="outline"
+								className={cn("h-11 w-full justify-between rounded-xl px-3 font-normal", hasError && "border-red-500 ring-2 ring-red-100")}
+							>
+								{date ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: TIME_ZONE }).format(new Date(toCalendarDate(date))) : "Seleziona data"}
+								<CalendarDays className="size-4 text-zinc-500" />
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent align="start" className="w-[calc(100vw-2rem)] max-w-[22rem] p-2 sm:w-auto">
+							<Calendar
+								mode="single"
+								locale={it}
+								weekStartsOn={1}
+								timeZone={TIME_ZONE}
+								selected={date ? new Date(toCalendarDate(date)) : undefined}
+								onSelect={(nextDate) => {
+									if (!nextDate) return;
+									onChange({ date: fromCalendarDate(nextDate) });
+									setIsDatePickerOpen(false);
+								}}
+							/>
+						</PopoverContent>
+					</Popover>
 				</div>
 				<div className="min-w-0">
 					<p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Orario disponibile</p>
