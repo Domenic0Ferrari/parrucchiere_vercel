@@ -57,10 +57,21 @@ function BookPageContent() {
 
 	useEffect(() => {
 		if (!serviceId || !employeeId) return;
+		let active = true;
 		setTime("");
 		void fetch(`/api/booking?serviceId=${encodeURIComponent(serviceId)}&employeeId=${encodeURIComponent(employeeId)}&date=${date}`)
-			.then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error); setSlots(data.slots); })
-			.catch((error: Error) => { setSlots([]); toast.error(error.message); });
+			.then(async (response) => {
+				const data = await response.json() as { error?: string; slots?: unknown };
+				if (!response.ok) throw new Error(data.error ?? "Impossibile caricare gli orari disponibili.");
+				if (!Array.isArray(data.slots)) throw new Error("Risposta non valida durante il caricamento degli orari.");
+				if (active) setSlots(data.slots as Slot[]);
+			})
+			.catch((error: Error) => {
+				if (!active) return;
+				setSlots([]);
+				toast.error(error.message);
+			});
+		return () => { active = false; };
 	}, [date, employeeId, serviceId]);
 
 	async function submit(event: FormEvent) {
