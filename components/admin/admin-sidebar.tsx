@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, LayoutDashboard, LogOut, Package, Tags, Users, X } from "lucide-react";
+import { CalendarDays, LayoutDashboard, LogOut, Package, Store, Tags, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { clearAdminSessionActivity } from "@/lib/admin-session-timeout";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useAuthSession } from "@/components/auth/employee-session-provider";
 
 const menuItems = [
 	{ href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -29,6 +30,10 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
 	const pathname = usePathname();
 	const router = useRouter();
+	const { user } = useAuthSession();
+	const visibleMenuItems = user?.employee.role === "admin"
+		? [...menuItems, { href: "/admin/salon", label: "Salone", icon: Store }]
+		: menuItems;
 
 	const handleLogout = async () => {
 		const supabase = getSupabaseBrowserClient();
@@ -71,7 +76,7 @@ export default function AdminSidebar({
 			</div>
 
 			<nav className="flex-1 space-y-1 overflow-y-auto p-4">
-				{menuItems.map((item) => {
+				{visibleMenuItems.map((item) => {
 					const Icon = item.icon;
 					const isActive = pathname === item.href;
 

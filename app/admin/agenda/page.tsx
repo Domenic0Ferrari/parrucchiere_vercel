@@ -1,10 +1,11 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Temporal } from "temporal-polyfill";
+import { it } from "date-fns/locale";
 import { createDayView, createMonthView, createWeekView, DayFlowCalendar, useCalendarApp, ViewType } from "@dayflow/react";
 import "@dayflow/core/dist/styles.components.css";
-import { X } from "lucide-react";
+import { CalendarDays, CalendarPlus2, ChevronLeft, ChevronRight, Clock3, Pencil, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,9 @@ import {
 } from "@/components/ui/select";
 import { useAuthSession } from "@/components/auth/employee-session-provider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { isSalonIntervalAvailable, type OpeningHour as SalonOpeningHour, type SalonClosure } from "@/lib/salon-availability";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 type EmployeeOption = {
@@ -70,19 +74,35 @@ type CreateFieldErrors = NewCustomerFieldErrors & {
 type DuplicateAppointmentWarning = {
 	customerName: string;
 };
+type CalendarContextMenu = {
+	x: number;
+	y: number;
+	appointmentId?: string;
+};
 
 const TIME_ZONE = "Europe/Rome";
 const AGENDA_START_HOUR = 8;
-const AGENDA_END_HOUR = 20;
+const ADMIN_OVERTIME_MARGIN_MINUTES = 60;
 const CALENDAR_FIRST_HOUR = 0;
 const CALENDAR_LAST_HOUR = 24;
 const CALENDAR_HOUR_HEIGHT = 64;
 const CALENDAR_HOURS_COUNT = CALENDAR_LAST_HOUR - CALENDAR_FIRST_HOUR;
+const CURRENT_TIME_TOP_MARGIN_HOURS = 1.5;
 const NEW_CUSTOMER_VALUE = "__new_customer__";
 const ACTIVE_APPOINTMENT_STATUS = "scheduled";
 const ERROR_VISIBILITY_MS = 4000;
 const FIELD_ERROR_VISIBILITY_MS = 2000;
 const EMPTY_DATE_TIME_LABEL = "--/--/---- --:--";
+
+function formatCalendarHeading(value: string, view: string) {
+	const date = Temporal.PlainDate.from(value);
+	const formatter = new Intl.DateTimeFormat("it-IT", {
+		month: "long",
+		year: "numeric",
+		...(view === ViewType.DAY ? { weekday: "long", day: "numeric" } : {}),
+	});
+	return formatter.format(new Date(`${date.toString()}T12:00:00`));
+}
 
 function toNullableNumber(value: unknown): number | null {
 	if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -166,6 +186,14 @@ function getInputDatePart(value: string) {
 	return value.split("T")[0] ?? "";
 }
 
+function toCalendarDate(value: string) {
+	return Temporal.PlainDate.from(value).toZonedDateTime(TIME_ZONE).toInstant().epochMilliseconds;
+}
+
+function fromCalendarDate(value: Date) {
+	return Temporal.Instant.fromEpochMilliseconds(value.getTime()).toZonedDateTimeISO(TIME_ZONE).toPlainDate().toString();
+}
+
 function updateInputDateTime(
 	value: string,
 	partial: { date?: string; time?: string }
@@ -245,23 +273,37 @@ function buildTimeSlots({
 	durationMinutes,
 	employeeId,
 	appointments,
+	openingHours,
+	closures,
+	allowOverride = false,
 	excludeAppointmentId,
 }: {
 	date: string;
 	durationMinutes: number | null;
 	employeeId: string;
 	appointments: AppointmentRow[];
+	openingHours: SalonOpeningHour[];
+	closures: SalonClosure[];
+	allowOverride?: boolean;
 	excludeAppointmentId?: string | null;
 }) {
 	if (!date) return [];
 
-	const dayStart = Temporal.PlainDateTime.from(`${date}T${String(AGENDA_START_HOUR).padStart(2, "0")}:00`);
-	const dayEnd = Temporal.PlainDateTime.from(`${date}T${String(AGENDA_END_HOUR).padStart(2, "0")}:00`);
+	const isoDayOfWeek = Temporal.PlainDate.from(date).dayOfWeek;
+	const dayHours = openingHours.find((item) => item.day_of_week === isoDayOfWeek);
+	if ((!dayHours?.is_open || !dayHours.open_time || !dayHours.close_time) && !allowOverride) return [];
+	const openTime = dayHours?.is_open && dayHours.open_time ? dayHours.open_time.slice(0, 5) : `${String(AGENDA_START_HOUR).padStart(2, "0")}:00`;
+	const closeTime = dayHours?.is_open && dayHours.close_time ? dayHours.close_time.slice(0, 5) : "20:00";
+
+	const openingStart = Temporal.PlainDateTime.from(`${date}T${openTime}`);
+	const closingEnd = Temporal.PlainDateTime.from(`${date}T${closeTime}`);
+	const dayStart = allowOverride ? openingStart.subtract({ minutes: ADMIN_OVERTIME_MARGIN_MINUTES }) : openingStart;
+	const dayEnd = allowOverride ? closingEnd.add({ minutes: ADMIN_OVERTIME_MARGIN_MINUTES }) : closingEnd;
 	const slots: Array<{ value: string; label: string; disabled: boolean }> = [];
 
 	for (
 		let cursor = dayStart;
-		Temporal.PlainDateTime.compare(cursor, dayEnd) <= 0;
+		Temporal.PlainDateTime.compare(cursor, dayEnd) < 0;
 		cursor = cursor.add({ minutes: 15 })
 	) {
 		const startAt = cursor.toString({ smallestUnit: "minute" });
@@ -269,8 +311,15 @@ function buildTimeSlots({
 			? cursor.add({ minutes: durationMinutes }).toString({ smallestUnit: "minute" })
 			: "";
 		const label = cursor.toPlainTime().toString({ smallestUnit: "minute" });
-		const endsAfterAgenda = !endAt || compareDateTimes(endAt, dayEnd.toString({ smallestUnit: "minute" })) > 0;
-		const overlaps = !endsAfterAgenda && hasAppointmentOverlap({
+		const endsAfterDay = !endAt || compareDateTimes(endAt, dayEnd.toString({ smallestUnit: "minute" })) > 0;
+		const withinSalonHours = !endsAfterDay && isSalonIntervalAvailable({
+			date,
+			start: label,
+			end: endAt.split("T")[1] ?? "",
+			openingHours,
+			closures,
+		});
+		const overlaps = !endsAfterDay && hasAppointmentOverlap({
 			appointments,
 			employeeId,
 			startAt,
@@ -281,21 +330,14 @@ function buildTimeSlots({
 		slots.push({
 			value: label,
 			label,
-			disabled: !durationMinutes || durationMinutes <= 0 || endsAfterAgenda || overlaps,
+			disabled: !durationMinutes || durationMinutes <= 0 || endsAfterDay || overlaps || (!allowOverride && !withinSalonHours),
 		});
 	}
 
 	return slots;
 }
 
-function isWithinAgendaHours(start: Temporal.PlainDateTime, end: Temporal.PlainDateTime) {
-	const agendaStart = Temporal.PlainTime.from({ hour: AGENDA_START_HOUR });
-	const agendaEnd = Temporal.PlainTime.from({ hour: AGENDA_END_HOUR });
-	return Temporal.PlainTime.compare(start.toPlainTime(), agendaStart) >= 0
-		&& Temporal.PlainTime.compare(end.toPlainTime(), agendaEnd) <= 0;
-}
-
-function validateTimes(startAt: string, endAt: string) {
+function validateTimes(startAt: string, endAt: string, openingHours: SalonOpeningHour[], closures: SalonClosure[]) {
 	if (!getInputDatePart(startAt)) {
 		return "Inserisci la data di inizio appuntamento.";
 	}
@@ -308,8 +350,17 @@ function validateTimes(startAt: string, endAt: string) {
 	if (Temporal.PlainDateTime.compare(end, start) <= 0) {
 		return "L'orario di fine deve essere successivo all'orario di inizio.";
 	}
-	if (!isWithinAgendaHours(start, end)) {
-		return `Gli appuntamenti devono essere compresi tra le ${String(AGENDA_START_HOUR).padStart(2, "0")}:00 e le ${String(AGENDA_END_HOUR).padStart(2, "0")}:00.`;
+	if (Temporal.PlainDate.compare(start.toPlainDate(), end.toPlainDate()) !== 0) {
+		return "Un appuntamento deve iniziare e finire nella stessa giornata.";
+	}
+	if (!isSalonIntervalAvailable({
+		date: start.toPlainDate().toString(),
+		start: start.toPlainTime().toString({ smallestUnit: "minute" }),
+		end: end.toPlainTime().toString({ smallestUnit: "minute" }),
+		openingHours,
+		closures,
+	})) {
+		return "L'appuntamento è fuori dall'orario di apertura, durante una pausa o in una chiusura del salone.";
 	}
 	return null;
 }
@@ -324,7 +375,7 @@ async function fetchAppointmentsForEmployee(
 ) {
 	const supabase = getSupabaseBrowserClient();
 	const { data, error } = await supabase
-		.from("appointements")
+		.from("appointments")
 		.select("id, customer_id, employee_id, service_id, start_time, end_time, status, final_price, final_duration_minutes, client_note, staff_note, appointment_source, created_at, updated_at")
 		.eq("employee_id", employeeId)
 		.eq("status", ACTIVE_APPOINTMENT_STATUS)
@@ -350,7 +401,7 @@ async function assertSlotAvailable({
 }) {
 	const supabase = getSupabaseBrowserClient();
 	const { data, error } = await supabase
-		.from("appointements")
+		.from("appointments")
 		.select("id, employee_id, start_time, end_time, status")
 		.eq("employee_id", employeeId)
 		.eq("status", ACTIVE_APPOINTMENT_STATUS);
@@ -379,6 +430,8 @@ export default function AdminAgendaPage() {
 	const [employees, setEmployees] = useState<EmployeeOption[]>([]);
 	const [customers, setCustomers] = useState<CustomerOption[]>([]);
 	const [services, setServices] = useState<ServiceOption[]>([]);
+	const [openingHours, setOpeningHours] = useState<SalonOpeningHour[]>([]);
+	const [closures, setClosures] = useState<SalonClosure[]>([]);
 	const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
 	const [loading, setLoading] = useState(true);
 	const [appointmentsLoading, setAppointmentsLoading] = useState(false);
@@ -396,7 +449,11 @@ export default function AdminAgendaPage() {
 	const [startAt, setStartAt] = useState(getDefaultStartDateTime);
 	const [endAt, setEndAt] = useState("");
 	const [notes, setNotes] = useState("");
+	const [allowScheduleOverride, setAllowScheduleOverride] = useState(false);
 	const [duplicateAppointmentWarning, setDuplicateAppointmentWarning] = useState<DuplicateAppointmentWarning | null>(null);
+	const [createAppointmentOpen, setCreateAppointmentOpen] = useState(false);
+	const [calendarContextMenu, setCalendarContextMenu] = useState<CalendarContextMenu | null>(null);
+	const longPressTimer = useRef<number | null>(null);
 
 	const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 	const [editCustomerId, setEditCustomerId] = useState("");
@@ -405,7 +462,7 @@ export default function AdminAgendaPage() {
 	const [editStartAt, setEditStartAt] = useState("");
 	const [editEndAt, setEditEndAt] = useState("");
 	const [editNotes, setEditNotes] = useState("");
-	const [calendarView, setCalendarView] = useState<string>(ViewType.WEEK);
+	const [calendarView, setCalendarView] = useState<string>(ViewType.DAY);
 	const [calendarDate, setCalendarDate] = useState(() => Temporal.Now.plainDateISO().toString());
 
 	const employeesById = useMemo(() => new Map(employees.map((item) => [item.id, item])), [employees]);
@@ -501,7 +558,7 @@ export default function AdminAgendaPage() {
 			setError(null);
 			try {
 				const supabase = getSupabaseBrowserClient();
-				const [employeesResult, servicesResult, customersResult] = await Promise.all([
+				const [employeesResult, servicesResult, customersResult, salonResult] = await Promise.all([
 					supabase
 						.from("employees")
 						.select("id, name, role, is_active")
@@ -515,11 +572,20 @@ export default function AdminAgendaPage() {
 						.from("customers")
 						.select("id, name, phone, email, note")
 						.order("name", { ascending: true }),
+					supabase.from("salon").select("id").order("created_at", { ascending: true }).limit(1).maybeSingle(),
 				]);
 
 				if (employeesResult.error) throw employeesResult.error;
 				if (servicesResult.error) throw servicesResult.error;
 				if (customersResult.error) throw customersResult.error;
+				if (salonResult.error) throw salonResult.error;
+				const salonId = salonResult.data?.id ? String(salonResult.data.id) : "";
+				const [hoursResult, closuresResult] = salonId ? await Promise.all([
+					supabase.from("salon_opening_hours").select("day_of_week, is_open, open_time, break_start, break_end, close_time").eq("salon_id", salonId),
+					supabase.from("salon_closures").select("start_date, end_date, all_day, start_time, end_time").eq("salon_id", salonId),
+				]) : [{ data: [], error: null }, { data: [], error: null }];
+				if (hoursResult.error) throw hoursResult.error;
+				if (closuresResult.error) throw closuresResult.error;
 				if (cancelled) return;
 
 				const employeeRows = ((employeesResult.data ?? []) as RawRow[]).map(normalizeEmployee).filter((item) => item.id);
@@ -528,14 +594,14 @@ export default function AdminAgendaPage() {
 				const employeesWithCurrent = employeeRows.some((item) => item.id === currentUser.employee.id)
 					? employeeRows
 					: [
-							...employeeRows,
-							{
-								id: currentUser.employee.id,
-								name: currentUser.employee.name,
-								role: currentUser.employee.role,
-								isActive: currentUser.employee.is_active,
-							},
-						];
+						...employeeRows,
+						{
+							id: currentUser.employee.id,
+							name: currentUser.employee.name,
+							role: currentUser.employee.role,
+							isActive: currentUser.employee.is_active,
+						},
+					];
 				const nextEmployeeId = currentUser.employee.role === "admin"
 					? employeesWithCurrent[0]?.id ?? currentUser.employee.id
 					: currentUser.employee.id;
@@ -546,6 +612,8 @@ export default function AdminAgendaPage() {
 				setEmployees(employeesWithCurrent);
 				setServices(serviceRows);
 				setCustomers(customerRows);
+				setOpeningHours((hoursResult.data ?? []) as SalonOpeningHour[]);
+				setClosures((closuresResult.data ?? []) as SalonClosure[]);
 				setSelectedEmployeeId(nextEmployeeId);
 				if (serviceRows.length === 1) {
 					const defaultStartAt = getDefaultStartDateTime();
@@ -612,8 +680,11 @@ export default function AdminAgendaPage() {
 			durationMinutes: servicesById.get(selectedServiceId)?.durationMinutes ?? null,
 			employeeId: selectedEmployeeId,
 			appointments,
+			openingHours,
+			closures,
+			allowOverride: isAdmin && allowScheduleOverride,
 		}),
-		[appointments, selectedEmployeeId, selectedServiceId, servicesById, startAt]
+		[allowScheduleOverride, appointments, closures, isAdmin, openingHours, selectedEmployeeId, selectedServiceId, servicesById, startAt]
 	);
 	const editTimeSlots = useMemo(
 		() => buildTimeSlots({
@@ -621,9 +692,12 @@ export default function AdminAgendaPage() {
 			durationMinutes: servicesById.get(editServiceId)?.durationMinutes ?? null,
 			employeeId: editEmployeeId,
 			appointments,
+			openingHours,
+			closures,
+			allowOverride: isAdmin && allowScheduleOverride,
 			excludeAppointmentId: selectedAppointmentId,
 		}),
-		[appointments, editEmployeeId, editServiceId, editStartAt, selectedAppointmentId, servicesById]
+		[allowScheduleOverride, appointments, closures, editEmployeeId, editServiceId, editStartAt, isAdmin, openingHours, selectedAppointmentId, servicesById]
 	);
 
 	const calendar = useCalendarApp({
@@ -647,10 +721,11 @@ export default function AdminAgendaPage() {
 			}),
 			createMonthView(),
 		],
-		defaultView: ViewType.WEEK,
+		defaultView: ViewType.DAY,
 		initialDate: new Date(`${calendarDate}T00:00:00`),
 		events: calendarEvents,
 		useCalendarHeader: false,
+		useEventDetailPanel: false,
 		callbacks: {
 			onDateChange: (date) => {
 				const next = Temporal.Instant.fromEpochMilliseconds(date.getTime()).toZonedDateTimeISO(TIME_ZONE).toPlainDate().toString();
@@ -660,16 +735,7 @@ export default function AdminAgendaPage() {
 				setCalendarView(view);
 			},
 			onEventClick: (event) => {
-				const eventId = String(event.id);
-				const current = appointments.find((item) => item.id === eventId);
-				if (!current) return;
-				setSelectedAppointmentId(eventId);
-				setEditCustomerId(current.customer_id);
-				setEditServiceId(current.service_id);
-				setEditEmployeeId(current.employee_id);
-				setEditStartAt(toInputDateTime(current.start_at));
-				setEditEndAt(toInputDateTime(current.end_at));
-				setEditNotes(current.notes ?? "");
+				openEditAppointment(String(event.id));
 			},
 		},
 	}, `${selectedEmployeeId}:${calendarEventsKey}`);
@@ -677,17 +743,27 @@ export default function AdminAgendaPage() {
 	useEffect(() => {
 		if (calendarView !== ViewType.DAY && calendarView !== ViewType.WEEK) return;
 
-		const scrollToAgendaStart = () => {
+		const scrollToRelevantTime = () => {
 			const content = document.querySelector<HTMLElement>(
 				".df-calendar-container .df-calendar-content, .df-calendar-container .df-week-time-grid-scroller"
 			);
 			if (!content) return false;
-			content.scrollTop = (AGENDA_START_HOUR - CALENDAR_FIRST_HOUR) * CALENDAR_HOUR_HEIGHT;
+
+			const now = Temporal.Now.zonedDateTimeISO(TIME_ZONE);
+			const today = now.toPlainDate().toString();
+			const targetHour = calendarDate === today
+				? now.hour + now.minute / 60 - CURRENT_TIME_TOP_MARGIN_HOURS
+				: AGENDA_START_HOUR;
+
+			content.scrollTop = Math.max(
+				0,
+				(targetHour - CALENDAR_FIRST_HOUR) * CALENDAR_HOUR_HEIGHT
+			);
 			return true;
 		};
 
-		if (scrollToAgendaStart()) return;
-		const timer = window.setTimeout(scrollToAgendaStart, 100);
+		if (scrollToRelevantTime()) return;
+		const timer = window.setTimeout(scrollToRelevantTime, 100);
 		return () => window.clearTimeout(timer);
 	}, [calendarView, calendarDate, appointments]);
 
@@ -774,6 +850,29 @@ export default function AdminAgendaPage() {
 		setStartAt(nextStartAt);
 		setEndAt(addMinutesToInputDateTime(nextStartAt, servicesById.get(nextServiceId)?.durationMinutes ?? null));
 		setNotes("");
+		setAllowScheduleOverride(false);
+	};
+
+	const openCreateAppointment = () => {
+		resetCreateForm();
+		const serviceId = services.length === 1 ? services[0].id : "";
+		const nextStartAt = `${calendarDate}T${String(AGENDA_START_HOUR).padStart(2, "0")}:00`;
+		setStartAt(nextStartAt);
+		setEndAt(addMinutesToInputDateTime(nextStartAt, servicesById.get(serviceId)?.durationMinutes ?? null));
+		setCreateAppointmentOpen(true);
+	};
+
+	const openEditAppointment = (appointmentId: string) => {
+		const current = appointments.find((item) => item.id === appointmentId);
+		if (!current) return;
+		setSelectedAppointmentId(appointmentId);
+		setEditCustomerId(current.customer_id);
+		setEditServiceId(current.service_id);
+		setEditEmployeeId(current.employee_id);
+		setEditStartAt(toInputDateTime(current.start_at));
+		setEditEndAt(toInputDateTime(current.end_at));
+		setEditNotes(current.notes ?? "");
+		setAllowScheduleOverride(false);
 	};
 
 	const validateNewCustomerFields = () => {
@@ -846,19 +945,19 @@ export default function AdminAgendaPage() {
 		const [phoneCheck, emailCheck] = await Promise.all([
 			phone
 				? supabase
-						.from("customers")
-						.select("id, name, phone, email, note")
-						.eq("phone", phone)
-						.limit(1)
-						.maybeSingle()
+					.from("customers")
+					.select("id, name, phone, email, note")
+					.eq("phone", phone)
+					.limit(1)
+					.maybeSingle()
 				: Promise.resolve({ data: null, error: null }),
 			email
 				? supabase
-						.from("customers")
-						.select("id, name, phone, email, note")
-						.eq("email", email)
-						.limit(1)
-						.maybeSingle()
+					.from("customers")
+					.select("id, name, phone, email, note")
+					.eq("email", email)
+					.limit(1)
+					.maybeSingle()
 				: Promise.resolve({ data: null, error: null }),
 		]);
 
@@ -907,21 +1006,22 @@ export default function AdminAgendaPage() {
 		const selectedCustomer = customerMode === "existing" ? customersById.get(selectedCustomerId) : null;
 		const phone = (selectedCustomer?.phone ?? newCustomerPhone).trim();
 		const email = (selectedCustomer?.email ?? newCustomerEmail).trim();
+		const appointmentDate = getInputDatePart(startAt);
 
-		if (!phone && !email) return null;
+		if ((!phone && !email) || !appointmentDate) return null;
 
 		const [phoneCheck, emailCheck] = await Promise.all([
 			phone
 				? supabase
-						.from("customers")
-						.select("id, name, phone, email, note")
-						.eq("phone", phone)
+					.from("customers")
+					.select("id, name, phone, email, note")
+					.eq("phone", phone)
 				: Promise.resolve({ data: null, error: null }),
 			email
 				? supabase
-						.from("customers")
-						.select("id, name, phone, email, note")
-						.eq("email", email)
+					.from("customers")
+					.select("id, name, phone, email, note")
+					.eq("email", email)
 				: Promise.resolve({ data: null, error: null }),
 		]);
 
@@ -937,11 +1037,17 @@ export default function AdminAgendaPage() {
 
 		if (matchingCustomers.length === 0) return null;
 
+		const nextDate = Temporal.PlainDate.from(appointmentDate).add({ days: 1 }).toString();
+		const dayStart = toSupabaseTimestamp(`${appointmentDate}T00:00`);
+		const dayEnd = toSupabaseTimestamp(`${nextDate}T00:00`);
+
 		const { data: appointmentData, error: appointmentError } = await supabase
-			.from("appointements")
+			.from("appointments")
 			.select("customer_id")
 			.in("customer_id", matchingCustomers.map((customer) => customer.id))
 			.eq("status", ACTIVE_APPOINTMENT_STATUS)
+			.gte("start_time", dayStart)
+			.lt("start_time", dayEnd)
 			.limit(1)
 			.maybeSingle();
 
@@ -961,7 +1067,7 @@ export default function AdminAgendaPage() {
 			if (!validateCreateAppointmentFields()) return;
 			if (!validateNewCustomerFields()) return;
 
-			const timeError = validateTimes(startAt, endAt);
+			const timeError = allowScheduleOverride && isAdmin ? null : validateTimes(startAt, endAt, openingHours, closures);
 			if (timeError) throw new Error(timeError);
 
 			if (!skipDuplicateCheck) {
@@ -997,10 +1103,12 @@ export default function AdminAgendaPage() {
 				appointmentPayload.staff_note = notes.trim();
 			}
 
-			const { error: insertError } = await supabase.from("appointements").insert(appointmentPayload);
+			const { error: insertError } = await supabase.from("appointments").insert(appointmentPayload);
 
 			if (insertError) throw insertError;
+			toast.success("Appuntamento salvato correttamente.", { duration: ERROR_VISIBILITY_MS });
 			resetCreateForm();
+			setCreateAppointmentOpen(false);
 			await refreshAppointments(selectedEmployeeId);
 		} catch (saveError) {
 			showError(saveError, "Impossibile salvare l'appuntamento.");
@@ -1018,7 +1126,7 @@ export default function AdminAgendaPage() {
 		setError(null);
 		const supabase = getSupabaseBrowserClient();
 		const { error: deleteError } = await supabase
-			.from("appointements")
+			.from("appointments")
 			.update({ status: "cancelled", updated_at: new Date().toISOString() })
 			.eq("id", id);
 
@@ -1028,29 +1136,6 @@ export default function AdminAgendaPage() {
 		}
 
 		setAppointments((prev) => prev.filter((item) => item.id !== id));
-	};
-
-	const onSaveNotes = async (id: string, newNotes: string) => {
-		setError(null);
-		const supabase = getSupabaseBrowserClient();
-		const { error: updateError } = await supabase
-			.from("appointements")
-			.update({
-				staff_note: newNotes.trim() || null,
-				updated_at: new Date().toISOString(),
-			})
-			.eq("id", id);
-
-		if (updateError) {
-			showError(updateError, "Impossibile salvare le note.");
-			return;
-		}
-
-		setAppointments((prev) =>
-			prev.map((item) =>
-				item.id === id ? { ...item, notes: newNotes.trim() || null } : item
-			)
-		);
 	};
 
 	const onSaveAppointmentFromModal = async () => {
@@ -1063,7 +1148,7 @@ export default function AdminAgendaPage() {
 			if (!editServiceId) throw new Error("Seleziona un servizio.");
 			if (!editEmployeeId) throw new Error("Seleziona un addetto.");
 
-			const timeError = validateTimes(editStartAt, editEndAt);
+			const timeError = allowScheduleOverride && isAdmin ? null : validateTimes(editStartAt, editEndAt, openingHours, closures);
 			if (timeError) throw new Error(timeError);
 
 			const service = servicesById.get(editServiceId);
@@ -1076,7 +1161,7 @@ export default function AdminAgendaPage() {
 
 			const supabase = getSupabaseBrowserClient();
 			const { error: updateError } = await supabase
-				.from("appointements")
+				.from("appointments")
 				.update({
 					customer_id: editCustomerId,
 					service_id: editServiceId,
@@ -1111,12 +1196,12 @@ export default function AdminAgendaPage() {
 			{error ? <p className="text-sm text-red-600">{error}</p> : null}
 
 			<header className="flex flex-wrap items-end justify-between gap-3">
-				<div className="space-y-0.5">
+				{/* <div className="space-y-0.5">
 					<h1 className="text-2xl font-semibold text-zinc-900">Agenda</h1>
 					<p className="text-sm text-zinc-600">
 						{loading ? "Caricamento dati agenda..." : `Agenda di ${activeEmployeeName || "addetto"}`}
 					</p>
-				</div>
+				</div> */}
 
 				{showEmployeeSelect ? (
 					<div className="w-full sm:w-64">
@@ -1139,270 +1224,344 @@ export default function AdminAgendaPage() {
 				) : null}
 			</header>
 
-			<div className="overflow-hidden rounded-md border border-zinc-200 lg:h-[calc(100dvh-8.5rem)]">
-				<div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-3 py-2">
-					<div className="flex items-center gap-2">
-						<Button type="button" variant="outline" className="cursor-pointer text-zinc-900 hover:text-zinc-900" onClick={() => moveCalendarDate(-1)}>
-							Indietro
-						</Button>
-						<Button type="button" variant="outline" className="cursor-pointer text-zinc-900 hover:text-zinc-900" onClick={() => moveCalendarDate(1)}>
-							Avanti
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							className="cursor-pointer text-zinc-900 hover:text-zinc-900"
-							onClick={() => changeCalendarDate(Temporal.Now.plainDateISO(TIME_ZONE).toString())}
-						>
-							Oggi
-						</Button>
+			<div className={cn(
+				"agenda-calendar overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]",
+				calendarView === ViewType.DAY && "agenda-calendar--day"
+			)}>
+				<div className="relative flex flex-wrap items-center gap-3 border-b border-zinc-200 px-4 py-3">
+					<div className="min-w-[13rem]">
+						<p className="text-lg font-semibold capitalize text-zinc-900">{formatCalendarHeading(calendarDate, calendarView)}</p>
+						{appointmentsLoading ? <p className="text-xs text-zinc-500">Aggiornamento appuntamenti...</p> : null}
 					</div>
-					<input
-						type="date"
-						value={calendarDate}
-						onChange={(e) => changeCalendarDate(e.target.value)}
-						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
-					/>
-					{appointmentsLoading ? <p className="text-sm text-zinc-500">Aggiornamento...</p> : null}
-					<div className="flex w-full flex-wrap items-center justify-start gap-2 lg:ml-auto lg:w-auto">
-						<Button
-							type="button"
-							variant="outline"
-							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.DAY ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
-							onClick={() => changeCalendarView(ViewType.DAY)}
-						>
-							Giorno
+					<div className="order-3 flex w-full justify-center lg:absolute lg:left-1/2 lg:w-auto lg:-translate-x-1/2">
+						<div className="flex rounded-lg bg-zinc-100 p-1">
+							<Button
+								type="button"
+								variant="ghost"
+								className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.DAY ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
+								onClick={() => changeCalendarView(ViewType.DAY)}
+							>
+								Giorno
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.WEEK ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
+								onClick={() => changeCalendarView(ViewType.WEEK)}
+							>
+								Settimana
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								className={`h-9 cursor-pointer px-4 text-zinc-600 hover:text-zinc-900 ${calendarView === ViewType.MONTH ? "bg-white text-zinc-900 shadow-sm hover:bg-white" : ""}`}
+								onClick={() => changeCalendarView(ViewType.MONTH)}
+							>
+								Mese
+							</Button>
+						</div>
+					</div>
+					<div className="ml-auto flex items-center gap-2">
+						<input
+							type="date"
+							aria-label="Scegli data agenda"
+							value={calendarDate}
+							onChange={(e) => changeCalendarDate(e.target.value)}
+							className="h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-700"
+						/>
+						<Button type="button" variant="outline" size="icon" aria-label="Periodo precedente" className="h-9 w-9 cursor-pointer" onClick={() => moveCalendarDate(-1)}>
+							<ChevronLeft className="size-4" />
 						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.WEEK ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
-							onClick={() => changeCalendarView(ViewType.WEEK)}
-						>
-							Settimana
+						<Button type="button" variant="outline" className="h-9 cursor-pointer px-3" onClick={() => changeCalendarDate(Temporal.Now.plainDateISO(TIME_ZONE).toString())}>
+							<CalendarDays className="mr-1.5 size-4" /> Oggi
 						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							className={`cursor-pointer text-zinc-900 hover:text-zinc-900 ${calendarView === ViewType.MONTH ? "bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white" : ""}`}
-							onClick={() => changeCalendarView(ViewType.MONTH)}
-						>
-							Mese
+						<Button type="button" variant="outline" size="icon" aria-label="Periodo successivo" className="h-9 w-9 cursor-pointer" onClick={() => moveCalendarDate(1)}>
+							<ChevronRight className="size-4" />
 						</Button>
 					</div>
 				</div>
-				<div className="h-[600px] lg:h-full">
+				<div
+					className={cn(
+						calendarView === ViewType.DAY ? "h-auto md:h-[600px]" : "h-[600px]",
+						"lg:h-full"
+					)}
+					onContextMenuCapture={(event) => {
+						event.preventDefault();
+						const appointmentElement = (event.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
+						setCalendarContextMenu({
+							x: event.clientX,
+							y: event.clientY,
+							appointmentId: appointmentElement?.getAttribute("data-event-id") ?? undefined,
+						});
+					}}
+					onTouchStart={(event) => {
+						const touch = event.touches[0];
+						if (!touch) return;
+						longPressTimer.current = window.setTimeout(() => {
+							const appointmentElement = (event.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
+							setCalendarContextMenu({
+								x: touch.clientX,
+								y: touch.clientY,
+								appointmentId: appointmentElement?.getAttribute("data-event-id") ?? undefined,
+							});
+						}, 600);
+					}}
+					onTouchEnd={() => {
+						if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+						longPressTimer.current = null;
+					}}
+					onTouchMove={() => {
+						if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+						longPressTimer.current = null;
+					}}
+				>
 					<DayFlowCalendar key={calendarEventsKey} calendar={calendar} />
 				</div>
 			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Aggiungi appuntamento</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<form onSubmit={onCreateAppointment} className="grid gap-3 md:grid-cols-2">
-						<div>
-							<label className="mb-1 block text-xs font-medium text-zinc-600">Cliente</label>
-							<Select
-								value={customerMode === "new" ? NEW_CUSTOMER_VALUE : selectedCustomerId}
-								onValueChange={(value) => {
-									if (value === NEW_CUSTOMER_VALUE) {
-										setCustomerMode("new");
-										setSelectedCustomerId("");
-										setCreateFieldErrors({});
-										return;
-									}
-									setCustomerMode("existing");
-									setSelectedCustomerId(value);
-									setCreateFieldErrors((current) => ({ ...current, customer: false }));
-								}}
-							>
-								<SelectTrigger className={createFieldErrors.customer ? "border-red-500" : undefined}>
-									<SelectValue placeholder="Seleziona cliente" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value={NEW_CUSTOMER_VALUE}>Nuovo cliente</SelectItem>
-									{customers.map((customer) => (
-										<SelectItem key={customer.id} value={customer.id}>
-											{customer.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-
-						<div>
-							<label className="mb-1 block text-xs font-medium text-zinc-600">Servizio</label>
-							<Select value={selectedServiceId} onValueChange={onSelectService}>
-								<SelectTrigger className={createFieldErrors.service ? "border-red-500" : undefined}>
-									<SelectValue placeholder="Seleziona servizio" />
-								</SelectTrigger>
-								<SelectContent>
-									{services.map((service) => (
-										<SelectItem key={service.id} value={service.id}>
-											{service.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-
-						{customerMode === "new" ? (
-							<div className="grid gap-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 md:col-span-2 md:grid-cols-2">
-								<div>
-									<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="new-customer-name">
-										Nome cliente
-									</label>
-									<input
-										id="new-customer-name"
-										value={newCustomerName}
-										onChange={(e) => {
-											setNewCustomerName(e.target.value);
-											if (createFieldErrors.name) {
-												setCreateFieldErrors((current) => ({ ...current, name: false }));
-											}
-										}}
-										placeholder="Nome nuovo cliente"
-										className={cn(
-											"w-full rounded-md border bg-white px-3 py-2 text-sm",
-											createFieldErrors.name ? "border-red-500" : "border-zinc-300"
-										)}
-									/>
+			{createAppointmentOpen ? (
+				<div className="fixed inset-0 z-50 flex items-end bg-zinc-950/45 backdrop-blur-[2px] sm:items-center sm:justify-center sm:p-6">
+					<Card
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="create-appointment-title"
+						className="max-h-[94dvh] w-full overflow-y-auto rounded-b-none border-0 shadow-2xl shadow-black/20 sm:max-w-3xl sm:rounded-2xl"
+					>
+						<CardHeader className="sticky top-0 z-10 flex flex-row items-center justify-between gap-4 border-b border-zinc-200 bg-white/95 px-5 py-4 backdrop-blur sm:px-6">
+							<div className="flex min-w-0 items-center gap-3">
+								<div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-white shadow-sm">
+									<CalendarPlus2 className="size-5" />
 								</div>
-								<div>
-									<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="new-customer-phone">
-										Telefono
-									</label>
-									<input
-										id="new-customer-phone"
-										value={newCustomerPhone}
-										onChange={(e) => {
-											setNewCustomerPhone(e.target.value);
-											if (createFieldErrors.phone || createFieldErrors.email) {
-												setCreateFieldErrors((current) => ({ ...current, phone: false, email: false }));
-											}
-										}}
-										placeholder="Numero di telefono"
-										className={cn(
-											"w-full rounded-md border bg-white px-3 py-2 text-sm",
-											createFieldErrors.phone ? "border-red-500" : "border-zinc-300"
-										)}
-									/>
+								<div className="min-w-0">
+									<CardTitle id="create-appointment-title" className="text-xl">Nuovo appuntamento</CardTitle>
+									<p className="mt-1 text-sm text-zinc-500">Inserisci cliente, servizio e orario.</p>
 								</div>
-								<div>
-									<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="new-customer-email">
-										Email
-									</label>
-									<input
-										id="new-customer-email"
-										type="email"
-										value={newCustomerEmail}
-										onChange={(e) => {
-											setNewCustomerEmail(e.target.value);
-											if (createFieldErrors.phone || createFieldErrors.email) {
-												setCreateFieldErrors((current) => ({ ...current, phone: false, email: false }));
-											}
-										}}
-										placeholder="Email cliente"
-										className={cn(
-											"w-full rounded-md border bg-white px-3 py-2 text-sm",
-											createFieldErrors.email ? "border-red-500" : "border-zinc-300"
-										)}
-									/>
-								</div>
-								<div>
-									<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="new-customer-note">
-										Nota cliente
-									</label>
-									<input id="new-customer-note" value={newCustomerNote} onChange={(e) => setNewCustomerNote(e.target.value)} placeholder="Nota cliente" className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" />
-								</div>
-								<p className="text-xs text-zinc-600 md:col-span-2">
-									Per un nuovo cliente servono nome e almeno un contatto tra email e telefono.
-								</p>
 							</div>
-						) : null}
+							<Button type="button" variant="ghost" size="icon" aria-label="Chiudi modale" className="shrink-0 rounded-full text-zinc-500 hover:text-zinc-900" onClick={() => setCreateAppointmentOpen(false)}>
+								<X className="size-5" />
+							</Button>
+						</CardHeader>
+						<CardContent className="p-5 sm:p-6">
+							<form onSubmit={onCreateAppointment} className="grid gap-x-4 gap-y-5 md:grid-cols-2">
+								<div>
+									<label className="mb-2 block text-sm font-medium text-zinc-700">Cliente</label>
+									<Select
+										value={customerMode === "new" ? NEW_CUSTOMER_VALUE : selectedCustomerId}
+										onValueChange={(value) => {
+											if (value === NEW_CUSTOMER_VALUE) {
+												setCustomerMode("new");
+												setSelectedCustomerId("");
+												setCreateFieldErrors({});
+												return;
+											}
+											setCustomerMode("existing");
+											setSelectedCustomerId(value);
+											setCreateFieldErrors((current) => ({ ...current, customer: false }));
+										}}
+									>
+										<SelectTrigger className={cn("h-11 rounded-xl bg-white", createFieldErrors.customer && "border-red-500 ring-2 ring-red-100")}>
+											<SelectValue placeholder="Seleziona cliente" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value={NEW_CUSTOMER_VALUE}>Nuovo cliente</SelectItem>
+											{customers.map((customer) => (
+												<SelectItem key={customer.id} value={customer.id}>
+													{customer.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
 
-						<div>
-							<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="appointment-employee">
-								Addetto
-							</label>
-							<input id="appointment-employee" value={activeEmployeeName} readOnly placeholder="Addetto" className="w-full rounded-md border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm text-zinc-700" />
-						</div>
-						<SlotDateTimeFields
-							idPrefix="appointment-start"
-							label="Inizio appuntamento"
-							value={startAt}
-							slots={createTimeSlots}
-							onChange={onChangeStartAt}
-							hasError={createFieldErrors.startAt}
-						/>
-						<ReadonlyDateTimeField
-							label="Fine appuntamento"
-							value={endAt}
-						/>
-						<div>
-							<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="appointment-notes">
-								Note staff
-							</label>
-							<input id="appointment-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note staff" className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-						</div>
-						<div className="md:col-span-2">
-							<Button type="submit" disabled={saving || loading}>{saving ? "Salvataggio..." : "Aggiungi"}</Button>
-						</div>
-					</form>
-				</CardContent>
-			</Card>
+								<div>
+									<label className="mb-2 block text-sm font-medium text-zinc-700">Servizio</label>
+									<Select value={selectedServiceId} onValueChange={onSelectService}>
+										<SelectTrigger className={cn("h-11 rounded-xl bg-white", createFieldErrors.service && "border-red-500 ring-2 ring-red-100")}>
+											<SelectValue placeholder="Seleziona servizio" />
+										</SelectTrigger>
+										<SelectContent>
+											{services.map((service) => (
+												<SelectItem key={service.id} value={service.id}>
+													{service.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Elenco appuntamenti</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{loading || appointmentsLoading ? (
-						<p className="text-sm text-zinc-600">Caricamento appuntamenti...</p>
-					) : appointments.length === 0 ? (
-						<p className="text-sm text-zinc-600">Nessun appuntamento presente.</p>
-					) : (
-						<div className="space-y-3">
-							{appointments.map((item) => (
-								<AppointmentRowItem
-									key={item.id}
-									item={item}
-									onDelete={onDeleteAppointment}
-									onSaveNotes={onSaveNotes}
+								{customerMode === "new" ? (
+									<div className="grid gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 md:col-span-2 md:grid-cols-2">
+										<div>
+											<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="new-customer-name">
+												Nome cliente
+											</label>
+											<input
+												id="new-customer-name"
+												value={newCustomerName}
+												onChange={(e) => {
+													setNewCustomerName(e.target.value);
+													if (createFieldErrors.name) {
+														setCreateFieldErrors((current) => ({ ...current, name: false }));
+													}
+												}}
+												placeholder="Nome nuovo cliente"
+												className={cn(
+													"h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-zinc-200",
+													createFieldErrors.name ? "border-red-500" : "border-zinc-300"
+												)}
+											/>
+										</div>
+										<div>
+											<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="new-customer-phone">
+												Telefono
+											</label>
+											<input
+												id="new-customer-phone"
+												value={newCustomerPhone}
+												onChange={(e) => {
+													setNewCustomerPhone(e.target.value);
+													if (createFieldErrors.phone || createFieldErrors.email) {
+														setCreateFieldErrors((current) => ({ ...current, phone: false, email: false }));
+													}
+												}}
+												placeholder="Numero di telefono"
+												className={cn(
+													"h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-zinc-200",
+													createFieldErrors.phone ? "border-red-500" : "border-zinc-300"
+												)}
+											/>
+										</div>
+										<div>
+											<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="new-customer-email">
+												Email
+											</label>
+											<input
+												id="new-customer-email"
+												type="email"
+												value={newCustomerEmail}
+												onChange={(e) => {
+													setNewCustomerEmail(e.target.value);
+													if (createFieldErrors.phone || createFieldErrors.email) {
+														setCreateFieldErrors((current) => ({ ...current, phone: false, email: false }));
+													}
+												}}
+												placeholder="Email cliente"
+												className={cn(
+													"h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-zinc-200",
+													createFieldErrors.email ? "border-red-500" : "border-zinc-300"
+												)}
+											/>
+										</div>
+										<div>
+											<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="new-customer-note">
+												Nota cliente
+											</label>
+											<input id="new-customer-note" value={newCustomerNote} onChange={(e) => setNewCustomerNote(e.target.value)} placeholder="Nota cliente" className="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-zinc-200" />
+										</div>
+										<p className="text-xs text-zinc-600 md:col-span-2">
+											Per un nuovo cliente servono nome e almeno un contatto tra email e telefono.
+										</p>
+									</div>
+								) : null}
+
+								<div>
+									<label className="mb-2 block text-sm font-medium text-zinc-700" htmlFor="appointment-employee">
+										Addetto
+									</label>
+									<input id="appointment-employee" value={activeEmployeeName} readOnly placeholder="Addetto" className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-sm font-medium text-zinc-600" />
+								</div>
+								<SlotDateTimeFields
+									idPrefix="appointment-start"
+									label="Inizio appuntamento"
+									value={startAt}
+									slots={createTimeSlots}
+									onChange={onChangeStartAt}
+									hasError={createFieldErrors.startAt}
 								/>
-							))}
-						</div>
-					)}
-				</CardContent>
-			</Card>
+								<ReadonlyDateTimeField
+									label="Fine appuntamento"
+									value={endAt}
+								/>
+								<div>
+									<label className="mb-2 block text-sm font-medium text-zinc-700" htmlFor="appointment-notes">
+										Note staff
+									</label>
+									<input id="appointment-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Aggiungi una nota facoltativa" className="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none transition placeholder:text-zinc-400 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200" />
+								</div>
+								{isAdmin ? <label className="flex items-center gap-2 text-sm text-zinc-600 md:col-span-2"><input type="checkbox" checked={allowScheduleOverride} onChange={(event) => setAllowScheduleOverride(event.target.checked)} /> Consenti eccezione a orari, pause e chiusure</label> : null}
+								<div className="-mx-5 -mb-5 mt-1 flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-5 py-4 md:col-span-2 sm:-mx-6 sm:-mb-6 sm:px-6">
+									<Button type="button" variant="ghost" className="text-zinc-600" onClick={() => setCreateAppointmentOpen(false)}>Annulla</Button>
+									<Button type="submit" className="min-w-40 gap-2 rounded-xl shadow-sm" disabled={saving || loading}>
+										<CalendarPlus2 className="size-4" />
+										{saving ? "Salvataggio..." : "Crea appuntamento"}
+									</Button>
+								</div>
+							</form>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
+
+			{calendarContextMenu ? (
+				<>
+					<div className="fixed inset-0 z-[60]" aria-hidden="true" onClick={() => setCalendarContextMenu(null)} />
+					<div
+						className="fixed z-[61] min-w-52 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg"
+						style={{ left: calendarContextMenu.x, top: calendarContextMenu.y }}
+					>
+						<Button
+							type="button"
+							variant="ghost"
+							className="w-full justify-start"
+							onClick={() => {
+								const appointmentId = calendarContextMenu.appointmentId;
+								setCalendarContextMenu(null);
+								if (appointmentId) openEditAppointment(appointmentId);
+								else openCreateAppointment();
+							}}
+						>
+							{calendarContextMenu.appointmentId ? "Modifica appuntamento" : "Nuovo appuntamento"}
+						</Button>
+					</div>
+				</>
+			) : null}
 
 			{selectedAppointment ? (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-					<div className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
-						<div className="mb-4 flex items-start justify-between gap-3">
-							<div>
-								<h2 className="text-lg font-semibold text-zinc-900">Dettaglio prenotazione</h2>
-								<p className="text-sm text-zinc-600">Modifica i dati e salva le variazioni.</p>
+				<div className="fixed inset-0 z-50 flex items-end bg-zinc-950/45 backdrop-blur-[2px] sm:items-center sm:justify-center sm:p-6">
+					<Card
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="edit-appointment-title"
+						className="max-h-[94dvh] w-full overflow-y-auto rounded-b-none border-0 shadow-2xl shadow-black/20 sm:max-w-3xl sm:rounded-2xl"
+					>
+						<CardHeader className="sticky top-0 z-10 flex flex-row items-center justify-between gap-4 border-b border-zinc-200 bg-white/95 px-5 py-4 backdrop-blur sm:px-6">
+							<div className="flex min-w-0 items-center gap-3">
+								<div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-white shadow-sm">
+									<Pencil className="size-5" />
+								</div>
+								<div className="min-w-0">
+									<CardTitle id="edit-appointment-title" className="text-xl">Modifica appuntamento</CardTitle>
+									<p className="mt-1 text-sm text-zinc-500">Aggiorna i dettagli della prenotazione.</p>
+								</div>
 							</div>
 							<Button
 								type="button"
 								variant="ghost"
 								size="icon"
 								aria-label="Chiudi modale"
-								className="cursor-pointer text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+								className="shrink-0 rounded-full text-zinc-500 hover:text-zinc-900"
 								onClick={() => setSelectedAppointmentId(null)}
 							>
-								<X className="h-5 w-5" />
+								<X className="size-5" />
 							</Button>
-						</div>
+						</CardHeader>
 
-						<div className="grid gap-3 md:grid-cols-2">
+						<CardContent className="p-5 sm:p-6">
+						<div className="grid gap-x-4 gap-y-5 md:grid-cols-2">
 							<div>
-								<label className="mb-1 block text-xs font-medium text-zinc-600">Cliente</label>
+								<label className="mb-2 block text-sm font-medium text-zinc-700">Cliente</label>
 								<Select value={editCustomerId} onValueChange={setEditCustomerId}>
-									<SelectTrigger>
+									<SelectTrigger className="h-11 rounded-xl bg-white">
 										<SelectValue placeholder="Cliente" />
 									</SelectTrigger>
 									<SelectContent>
@@ -1415,9 +1574,9 @@ export default function AdminAgendaPage() {
 								</Select>
 							</div>
 							<div>
-								<label className="mb-1 block text-xs font-medium text-zinc-600">Servizio</label>
+								<label className="mb-2 block text-sm font-medium text-zinc-700">Servizio</label>
 								<Select value={editServiceId} onValueChange={onSelectEditService}>
-									<SelectTrigger>
+									<SelectTrigger className="h-11 rounded-xl bg-white">
 										<SelectValue placeholder="Servizio" />
 									</SelectTrigger>
 									<SelectContent>
@@ -1431,9 +1590,9 @@ export default function AdminAgendaPage() {
 							</div>
 							{isAdmin && employees.length > 1 ? (
 								<div>
-									<label className="mb-1 block text-xs font-medium text-zinc-600">Addetto</label>
+									<label className="mb-2 block text-sm font-medium text-zinc-700">Addetto</label>
 									<Select value={editEmployeeId} onValueChange={setEditEmployeeId}>
-										<SelectTrigger>
+										<SelectTrigger className="h-11 rounded-xl bg-white">
 											<SelectValue placeholder="Addetto" />
 										</SelectTrigger>
 										<SelectContent>
@@ -1447,10 +1606,10 @@ export default function AdminAgendaPage() {
 								</div>
 							) : (
 								<div>
-									<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="edit-appointment-employee">
+									<label className="mb-2 block text-sm font-medium text-zinc-700" htmlFor="edit-appointment-employee">
 										Addetto
 									</label>
-									<input id="edit-appointment-employee" value={employeesById.get(editEmployeeId)?.name ?? activeEmployeeName} readOnly placeholder="Addetto" className="w-full rounded-md border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm text-zinc-700" />
+									<input id="edit-appointment-employee" value={employeesById.get(editEmployeeId)?.name ?? activeEmployeeName} readOnly placeholder="Addetto" className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-sm font-medium text-zinc-600" />
 								</div>
 							)}
 							<SlotDateTimeFields
@@ -1465,29 +1624,36 @@ export default function AdminAgendaPage() {
 								value={editEndAt}
 							/>
 							<div>
-								<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor="edit-appointment-notes">
+								<label className="mb-2 block text-sm font-medium text-zinc-700" htmlFor="edit-appointment-notes">
 									Note staff
 								</label>
-								<input id="edit-appointment-notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Note staff" className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500" />
+								<input id="edit-appointment-notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Aggiungi una nota facoltativa" className="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200" />
 							</div>
+							{isAdmin ? <label className="flex items-center gap-2 text-sm text-zinc-600 md:col-span-2"><input type="checkbox" checked={allowScheduleOverride} onChange={(event) => setAllowScheduleOverride(event.target.checked)} /> Consenti eccezione a orari, pause e chiusure</label> : null}
 						</div>
 
-						<div className="mt-5 flex flex-wrap gap-2">
-							<Button type="button" disabled={saving} onClick={onSaveAppointmentFromModal}>
-								{saving ? "Salvataggio..." : "Salva modifiche"}
+						<div className="-mx-5 -mb-5 mt-6 flex flex-col-reverse gap-3 border-t border-zinc-200 bg-zinc-50 px-5 py-4 sm:-mx-6 sm:-mb-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+							<Button type="button" variant="ghost" className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => void onDeleteFromModal()}>
+								<Trash2 className="size-4" />
+								Elimina appuntamento
 							</Button>
-							<Button type="button" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => void onDeleteFromModal()}>
-								Cancella prenotazione
-							</Button>
+							<div className="flex items-center justify-end gap-3">
+								<Button type="button" variant="ghost" className="text-zinc-600" onClick={() => setSelectedAppointmentId(null)}>Annulla</Button>
+								<Button type="button" className="min-w-40 gap-2 rounded-xl shadow-sm" disabled={saving} onClick={onSaveAppointmentFromModal}>
+									<Save className="size-4" />
+									{saving ? "Salvataggio..." : "Salva modifiche"}
+								</Button>
+							</div>
 						</div>
-					</div>
+						</CardContent>
+					</Card>
 				</div>
 			) : null}
 
 			<ConfirmDialog
 				open={Boolean(duplicateAppointmentWarning)}
 				title="Prenotazione già presente"
-				description={`esiste già una prenotazione per il cliente: ${duplicateAppointmentWarning?.customerName ?? ""}. Procedere lo stesso?`}
+				description={`Esiste già una prenotazione per ${duplicateAppointmentWarning?.customerName ?? "questo cliente"} nella giornata selezionata. Procedere lo stesso?`}
 				confirmLabel="Procedere"
 				cancelLabel="Annulla"
 				isLoading={saving}
@@ -1516,6 +1682,97 @@ export default function AdminAgendaPage() {
 					min-height: calc(${CALENDAR_HOURS_COUNT} * var(--df-hour-height, ${CALENDAR_HOUR_HEIGHT}px));
 				}
 
+				/* Manteniamo nascosti i pannelli di gestione nativi non usati dall'agenda. */
+				.agenda-calendar .df-event-detail-panel,
+				.agenda-calendar .df-sidebar,
+				.agenda-calendar .df-calendar-sidebar-aside {
+					display: none !important;
+				}
+
+				.agenda-calendar .df-right-panel {
+					display: none !important;
+				}
+
+				.agenda-calendar--day .df-right-panel {
+					background: #fafafa;
+					border-left: 1px solid #e4e4e7;
+					display: block !important;
+					width: 32%;
+				}
+
+				.agenda-calendar--day .df-mini-calendar {
+					background: #ffffff;
+					border-bottom: 1px solid #e4e4e7;
+				}
+
+				.agenda-calendar--day .df-right-panel-events-inner {
+					padding: 1rem;
+				}
+
+				.agenda-calendar--day .df-right-panel-date-heading {
+					background: #fafafa;
+					color: #18181b;
+					text-transform: capitalize;
+				}
+
+				.agenda-calendar--day .df-right-panel-event-card {
+					border: 1px solid rgba(99, 102, 241, 0.24);
+					border-radius: 0.65rem;
+					box-shadow: 0 2px 5px rgba(49, 46, 129, 0.08);
+					overflow: hidden;
+				}
+
+				.agenda-calendar .df-calendar-view-container {
+					width: 100%;
+				}
+
+				.agenda-calendar .df-day-content[data-switcher-mode] {
+					width: 100% !important;
+				}
+
+				.agenda-calendar--day .df-day-content[data-switcher-mode] {
+					width: 68% !important;
+				}
+
+				@media (max-width: 767px) {
+					.agenda-calendar--day .df-calendar-wrapper,
+					.agenda-calendar--day .df-calendar-container,
+					.agenda-calendar--day .df-calendar,
+					.agenda-calendar--day .df-day-view {
+						height: auto !important;
+					}
+
+					.agenda-calendar--day .df-day-view {
+						flex-direction: column;
+					}
+
+					.agenda-calendar--day .df-day-content[data-switcher-mode] {
+						flex: none;
+						height: 600px;
+						width: 100% !important;
+					}
+
+					.agenda-calendar--day .df-right-panel {
+						border-left: 0;
+						border-top: 1px solid #e4e4e7;
+						height: auto;
+						width: 100%;
+					}
+
+					.agenda-calendar--day .df-right-panel-layout {
+						height: auto;
+					}
+
+					.agenda-calendar--day .df-right-panel-events {
+						overflow: visible;
+					}
+				}
+
+				/* Il periodo selezionato è già mostrato nella barra dell'agenda. */
+				.agenda-calendar .df-view-header-container {
+					display: none;
+				}
+
 				.df-event {
 					white-space: pre-line !important;
 				}
@@ -1541,46 +1798,74 @@ function SlotDateTimeFields({
 }) {
 	const date = getInputDatePart(value);
 	const selectedTime = value.split("T")[1] ?? "";
+	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
 	return (
-		<div className="space-y-2 md:col-span-2">
-			<label className="mb-1 block text-xs font-medium text-zinc-600" htmlFor={`${idPrefix}-date`}>
+		<div className={cn("rounded-2xl border bg-zinc-50/70 p-4 md:col-span-2", hasError ? "border-red-300" : "border-zinc-200")}>
+			<div className="flex items-center gap-2 text-sm font-semibold text-zinc-800">
+				<Clock3 className="size-4 text-zinc-500" />
 				{label}
-			</label>
-			<div className="grid gap-2 md:grid-cols-[minmax(11rem,16rem)_1fr]">
-				<input
-					id={`${idPrefix}-date`}
-					required
-					type="date"
-					value={date}
-					onChange={(event) => onChange({ date: event.target.value })}
-					className={cn(
-						"w-full rounded-md border bg-white px-3 py-2 text-sm text-zinc-900",
-						hasError ? "border-red-500" : "border-zinc-300"
-					)}
-				/>
-				<div className="grid grid-cols-4 gap-1 sm:grid-cols-6 lg:grid-cols-8">
-					{slots.map((slot) => {
-						const selected = selectedTime === slot.value;
-						return (
-							<button
-								key={slot.value}
+			</div>
+			<div className="mt-4 grid items-start gap-4 md:grid-cols-[13rem_1fr]">
+				<div>
+					<label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-500" htmlFor={`${idPrefix}-date`}>
+						Data
+					</label>
+					<Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+						<PopoverTrigger asChild>
+							<Button
+								id={`${idPrefix}-date`}
 								type="button"
-								disabled={slot.disabled}
-								onClick={() => onChange({ time: slot.value })}
-								className={cn(
-									"h-9 rounded-md border px-2 text-xs font-medium transition",
-									selected
-										? "border-zinc-900 bg-zinc-900 text-white"
-										: "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100",
-									slot.disabled && "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100",
-									hasError && "border-red-500"
-								)}
+								variant="outline"
+								className={cn("h-11 w-full justify-between rounded-xl px-3 font-normal", hasError && "border-red-500 ring-2 ring-red-100")}
 							>
-								{slot.label}
-							</button>
-						);
-					})}
+								{date ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: TIME_ZONE }).format(new Date(toCalendarDate(date))) : "Seleziona data"}
+								<CalendarDays className="size-4 text-zinc-500" />
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent align="start" className="w-[calc(100vw-2rem)] max-w-[22rem] p-2 sm:w-auto">
+							<Calendar
+								mode="single"
+								locale={it}
+								weekStartsOn={1}
+								timeZone={TIME_ZONE}
+								selected={date ? new Date(toCalendarDate(date)) : undefined}
+								onSelect={(nextDate) => {
+									if (!nextDate) return;
+									onChange({ date: fromCalendarDate(nextDate) });
+									setIsDatePickerOpen(false);
+								}}
+							/>
+						</PopoverContent>
+					</Popover>
+				</div>
+				<div className="min-w-0">
+					<p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Orario disponibile</p>
+					<div className="max-h-44 overflow-y-auto pr-1">
+						<div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+							{slots.map((slot) => {
+								const selected = selectedTime === slot.value;
+								return (
+									<button
+										key={slot.value}
+										type="button"
+										disabled={slot.disabled}
+										onClick={() => onChange({ time: slot.value })}
+										className={cn(
+											"h-9 rounded-lg border px-2 text-xs font-medium tabular-nums transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400",
+											selected
+												? "border-zinc-900 bg-zinc-900 text-white shadow-sm"
+												: "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50",
+											slot.disabled && "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:border-zinc-200 hover:bg-zinc-100",
+											hasError && !selected && "border-red-300"
+										)}
+									>
+										{slot.label}
+									</button>
+								);
+							})}
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -1596,54 +1881,12 @@ function ReadonlyDateTimeField({
 }) {
 	return (
 		<div>
-			<label className="mb-1 block text-xs font-medium text-zinc-600">
+			<label className="mb-2 block text-sm font-medium text-zinc-700">
 				{label}
 			</label>
-			<div className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm text-zinc-700">
+			<div className="flex h-11 items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-sm font-medium text-zinc-600">
+				<Clock3 className="size-4 shrink-0 text-zinc-400" />
 				{value ? toInputDateTime(value).replace("T", " ") : EMPTY_DATE_TIME_LABEL}
-			</div>
-		</div>
-	);
-}
-
-function AppointmentRowItem({
-	item,
-	onDelete,
-	onSaveNotes,
-}: {
-	item: AppointmentRow;
-	onDelete: (id: string) => Promise<void>;
-	onSaveNotes: (id: string, notes: string) => Promise<void>;
-}) {
-	const [noteDraft, setNoteDraft] = useState(item.notes ?? "");
-
-	return (
-		<div className="rounded-lg border border-zinc-200 p-3">
-			<p className="text-sm font-semibold text-zinc-900">{item.service_name} - {item.customer_name}</p>
-			<p className="mt-1 text-xs text-zinc-600">
-				{toInputDateTime(item.start_at).replace("T", " ")} - {toInputDateTime(item.end_at).replace("T", " ")}
-				{item.operator_name ? ` - ${item.operator_name}` : ""}
-			</p>
-			<div className="mt-2 flex flex-col gap-2 md:flex-row">
-				<input
-					value={noteDraft}
-					onChange={(e) => setNoteDraft(e.target.value)}
-					placeholder="Aggiungi note staff"
-					className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-				/>
-				<div className="flex gap-2">
-					<Button type="button" variant="outline" onClick={() => void onSaveNotes(item.id, noteDraft)}>
-						Salva note
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						className="border-red-300 text-red-700 hover:bg-red-50"
-						onClick={() => void onDelete(item.id)}
-					>
-						Cancella
-					</Button>
-				</div>
 			</div>
 		</div>
 	);
