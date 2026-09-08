@@ -75,7 +75,7 @@ function BookPageContent() {
 
 	if (complete) return <div className="min-h-[70vh] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-xl px-4 py-20"><div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"><h1 className="text-2xl font-semibold">Prenotazione confermata</h1><p className="mt-2 text-zinc-600">Ti aspettiamo {formatDate(date)} alle {time}.</p><Link href="/" className="mt-5 inline-block rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Torna alla home</Link></div></main></div>;
 
-	return <div className="min-h-screen bg-zinc-950 text-zinc-100"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16">
+	return <div className="min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-100"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16">
 		<header className="max-w-xl"><p className="text-xs font-semibold tracking-[.18em] text-zinc-400">PRENOTA ONLINE</p><h1 className="mt-2 text-2xl font-semibold leading-tight text-white sm:text-3xl">Scegli il tuo appuntamento</h1><p className="mt-2 text-sm leading-relaxed text-zinc-300">Gli orari occupati sono mostrati ma non selezionabili.</p></header>
 		{loading ? <p className="mt-8 text-sm text-zinc-300">Caricamento disponibilità...</p> : <form onSubmit={submit} className="mt-7 grid gap-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:mt-8 sm:gap-7 sm:p-7">
 			<Field label="Per chi è il servizio?"><div className="flex flex-wrap gap-2">{(["tutti", "donna", "uomo"] as const).map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold capitalize ${category === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"}`}>{item === "tutti" ? "Tutti" : item}</button>)}</div></Field>
@@ -85,7 +85,7 @@ function BookPageContent() {
 			<div className="grid gap-4 sm:grid-cols-2"><Field label="Nome completo"><input required value={name} onChange={(event) => setName(event.target.value)} className="input" /></Field><Field label="Telefono"><input value={phone} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div>
 			<p className="text-xs leading-relaxed text-zinc-500">Inserisci telefono o email per completare la prenotazione.</p><button disabled={saving || !time} className="min-h-12 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma prenotazione"}</button>
 		</form>}
-		<style jsx>{`.input { width:100%; min-height:2.75rem; border:1px solid #d4d4d8; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#18181b; background:#fff; }`}</style>
+		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #d4d4d8; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#18181b; background:#fff; }`}</style>
 	</main></div>;
 }
 
@@ -93,4 +93,4 @@ function BookingPageFallback() {
 	return <div className="min-h-screen bg-zinc-950 text-zinc-100"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16"><p className="mt-8 text-sm text-zinc-300">Caricamento disponibilità...</p></main></div>;
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) { return <div><label className="mb-2 block text-sm font-semibold text-zinc-800">{label}</label>{children}</div>; }
+function Field({ label, children }: { label: string; children: ReactNode }) { return <div className="min-w-0"><label className="mb-2 block text-sm font-semibold text-zinc-800">{label}</label>{children}</div>; }
