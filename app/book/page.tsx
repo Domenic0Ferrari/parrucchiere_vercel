@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -14,6 +14,10 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", 
 const formatDate = (value: string) => new Intl.DateTimeFormat("it-IT", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`));
 
 export default function BookPage() {
+	return <Suspense fallback={<BookingPageFallback />}><BookPageContent /></Suspense>;
+}
+
+function BookPageContent() {
 	const params = useSearchParams();
 	const [services, setServices] = useState<Service[]>([]);
 	const [employees, setEmployees] = useState<Employee[]>([]);
@@ -83,6 +87,10 @@ export default function BookPage() {
 		</form>}
 		<style jsx>{`.input { width:100%; min-height:2.75rem; border:1px solid #d4d4d8; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#18181b; background:#fff; }`}</style>
 	</main></div>;
+}
+
+function BookingPageFallback() {
+	return <div className="min-h-screen bg-zinc-950 text-zinc-100"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16"><p className="mt-8 text-sm text-zinc-300">Caricamento disponibilità...</p></main></div>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) { return <div><label className="mb-2 block text-sm font-semibold text-zinc-800">{label}</label>{children}</div>; }
