@@ -59,23 +59,35 @@ export async function GET(request: NextRequest) {
 		const employeeId = request.nextUrl.searchParams.get("employeeId");
 		const date = request.nextUrl.searchParams.get("date");
 		if (serviceId && employeeId && date) return NextResponse.json({ slots: (await availableSlots(supabase, employeeId, serviceId, date)).slots });
-		const [services, employees, categoryLinks] = await Promise.all([
-			supabase.from("services").select("id, name, duration, price").eq("is_active", true).order("name"),
+		const [services, employees, categories, categoryLinks] = await Promise.all([
+			supabase.from("services").select("id, name, description, duration, price").eq("is_active", true).order("name"),
 			supabase.from("employees").select("id, name").eq("is_active", true).order("name"),
-			supabase.from("categories2services").select("service_id, categories(name, is_active)"),
+			supabase.from("categories").select("id, name").eq("is_active", true).order("name"),
+			supabase.from("categories2services").select("service_id, categories_id, categories(name, is_active)"),
 		]);
 		if (services.error) throw services.error;
 		if (employees.error) throw employees.error;
+		if (categories.error) throw categories.error;
 		const categoriesByService = new Map<string, string[]>();
-		for (const row of (categoryLinks.data ?? []) as Array<{ service_id: string; categories: { name?: string; is_active?: boolean } | null }>) {
+		const categoryIdsByService = new Map<string, string[]>();
+		for (const row of (categoryLinks.data ?? []) as Array<{ service_id: string | number; categories_id: string | number; categories: { name?: string; is_active?: boolean } | null }>) {
 			if (!row.categories?.name || row.categories.is_active === false) continue;
-			const categories = categoriesByService.get(row.service_id) ?? [];
+			const serviceId = String(row.service_id);
+			const categories = categoriesByService.get(serviceId) ?? [];
 			categories.push(row.categories.name);
-			categoriesByService.set(row.service_id, categories);
+			categoriesByService.set(serviceId, categories);
+			const categoryIds = categoryIdsByService.get(serviceId) ?? [];
+			categoryIds.push(String(row.categories_id));
+			categoryIdsByService.set(serviceId, categoryIds);
 		}
 		return NextResponse.json({
-			services: (services.data ?? []).map((service) => ({ ...service, categories: categoriesByService.get(String(service.id)) ?? [] })),
+			services: (services.data ?? []).map((service) => ({
+				...service,
+				categories: categoriesByService.get(String(service.id)) ?? [],
+				categoryIds: categoryIdsByService.get(String(service.id)) ?? [],
+			})),
 			employees: employees.data ?? [],
+			categories: (categories.data ?? []).map((category) => ({ ...category, id: String(category.id) })),
 		});
 	} catch (error) {
 		return NextResponse.json({ error: error instanceof Error ? error.message : "Impossibile caricare la disponibilità." }, { status: 500 });

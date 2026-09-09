@@ -1,88 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-type ServiceCategory = "tutti" | "donna" | "uomo";
+type Service = {
+	id: string;
+	name: string;
+	description: string | null;
+	price: number | null;
+	duration: number | null;
+	categoryIds?: string[];
+	categories?: string[];
+};
 
-const services = [
-	{
-		title: "Taglio e piega",
-		description:
-			"Consulenza, shampoo specifico e styling finale per un risultato naturale e duraturo.",
-		price: "Da 35 EUR",
-		duration: "45-60 min",
-		category: "donna",
-	},
-	{
-		title: "Colore (radici / completo)",
-		description:
-			"Tonalita personalizzata, protezione e finitura luminosa con prodotti selezionati.",
-		price: "Da 45 EUR",
-		duration: "60-90 min",
-		category: "donna",
-	},
-	{
-		title: "Piega e styling",
-		description:
-			"Onde, liscio o volumizzante: scegli lo styling perfetto per la tua occasione.",
-		price: "Da 30 EUR",
-		duration: "30-60 min",
-		category: "donna",
-	},
-	{
-		title: "Trattamento rigenerante",
-		description:
-			"Nutrizione profonda e ricostruzione per capelli stressati o trattati.",
-		price: "Da 25 EUR",
-		duration: "20-40 min",
-		category: "tutti",
-	},
-	{
-		title: "Schiariture / balayage",
-		description:
-			"Effetto naturale e sfumato, studiato sul tuo viso e sul tuo colore di base.",
-		price: "Da 80 EUR",
-		duration: "120-180 min",
-		category: "donna",
-	},
-	{
-		title: "Raccolti e cerimonia",
-		description:
-			"Raccolto elegante e fissaggio professionale per eventi e cerimonie.",
-		price: "Da 55 EUR",
-		duration: "60-90 min",
-		category: "donna",
-	},
-	{
-		title: "Taglio uomo",
-		description:
-			"Taglio personalizzato con rifinitura professionale e finish adatto al tuo stile.",
-		price: "Da 22 EUR",
-		duration: "30-45 min",
-		category: "uomo",
-	},
-	{
-		title: "Barba e grooming",
-		description:
-			"Definizione barba, contorni precisi e trattamento lenitivo post-servizio.",
-		price: "Da 18 EUR",
-		duration: "20-30 min",
-		category: "uomo",
-	},
-] as const;
+type Category = { id: string; name: string };
 
 export default function ServiziPage() {
-	const [selectedCategory, setSelectedCategory] =
-		useState<ServiceCategory>("tutti");
+	const [selectedCategory, setSelectedCategory] = useState("tutti");
+	const [services, setServices] = useState<Service[]>([]);
+	const [categories, setCategories] = useState<Category[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
 
-	const filteredServices = services.filter(
-		(service) =>
-			selectedCategory === "tutti" ||
-			service.category === "tutti" ||
-			service.category === selectedCategory,
-	);
+	useEffect(() => {
+		void fetch("/api/booking")
+			.then(async (response) => {
+				const data = await response.json() as { services?: Service[]; categories?: Category[]; error?: string };
+				if (!response.ok) throw new Error(data.error ?? "Impossibile caricare i servizi.");
+				const nextCategories = data.categories ?? [];
+				setCategories(nextCategories);
+				setServices((data.services ?? []).map((service) => ({
+					...service,
+					categoryIds: service.categoryIds ?? (service.categories ?? []).flatMap((name) => {
+						const category = nextCategories.find((item) => item.name.trim().toLocaleLowerCase("it-IT") === name.trim().toLocaleLowerCase("it-IT"));
+						return category ? [category.id] : [];
+					}),
+				})));
+			})
+			.catch((requestError: Error) => setError(requestError.message))
+			.finally(() => setLoading(false));
+	}, []);
+
+	const filteredServices = useMemo(() => services.filter((service) =>
+		selectedCategory === "tutti" || (service.categoryIds ?? []).includes(selectedCategory),
+	), [selectedCategory, services]);
 
 	return (
 		<div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
@@ -131,23 +93,24 @@ export default function ServiziPage() {
 							active={selectedCategory === "tutti"}
 							onClick={() => setSelectedCategory("tutti")}
 						/>
-						<FilterButton
-							label="Donna"
-							active={selectedCategory === "donna"}
-							onClick={() => setSelectedCategory("donna")}
-						/>
-						<FilterButton
-							label="Uomo"
-							active={selectedCategory === "uomo"}
-							onClick={() => setSelectedCategory("uomo")}
-						/>
+						{categories.map((category) => (
+							<FilterButton
+								key={category.id}
+								label={category.name}
+								active={selectedCategory === category.id}
+								onClick={() => setSelectedCategory(category.id)}
+							/>
+						))}
 					</div>
 
 					<div className="mt-6 grid gap-5 md:grid-cols-3">
+						{loading ? <p className="text-sm text-zinc-600">Caricamento servizi...</p> : null}
+						{error ? <p className="text-sm text-red-600">{error}</p> : null}
+						{!loading && !error && filteredServices.length === 0 ? <p className="text-sm text-zinc-600">Nessun servizio disponibile.</p> : null}
 						{filteredServices.map((service) => (
 							<ServiceCard
-								key={service.title}
-								title={service.title}
+								key={service.id}
+								title={service.name}
 								description={service.description}
 								price={service.price}
 								duration={service.duration}
@@ -181,9 +144,9 @@ function FilterButton(props: {
 
 function ServiceCard(props: {
 	title: string;
-	description: string;
-	price: string;
-	duration: string;
+	description: string | null;
+	price: number | null;
+	duration: number | null;
 }) {
 	const handleStartBooking = () => {
 		if (typeof window === "undefined") return;
@@ -200,10 +163,11 @@ function ServiceCard(props: {
 			<div className="space-y-2">
 				<h3 className="text-sm font-semibold text-zinc-900">{props.title}</h3>
 				<p className="text-xs leading-relaxed text-zinc-600">
-					{props.description}
+					{props.description || "Dettagli disponibili in salone."}
 				</p>
 				<p className="text-xs font-medium text-zinc-800">
-					{props.price} - {props.duration}
+					{props.price !== null ? `EUR ${props.price.toFixed(2)}` : "Prezzo su richiesta"}
+					{props.duration !== null ? ` - ${props.duration} min` : ""}
 				</p>
 			</div>
 			<Link
