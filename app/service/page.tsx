@@ -48,7 +48,7 @@ export default function ServiziPage() {
 
 	return (
 		<div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
-			<div className="relative h-[280px] w-full overflow-hidden sm:h-[380px] lg:h-[460px]">
+			<div className="relative h-[180px] w-full overflow-hidden sm:h-[210px] lg:h-[240px]">
 				<Image
 					src="/capelli_servizi.jpg"
 					alt="capelli_servizi"
@@ -62,7 +62,7 @@ export default function ServiziPage() {
 
 				<div
 					id="home"
-					className="relative z-10 mx-auto flex h-full max-w-5xl flex-col justify-center px-4 pb-10 pt-24 sm:px-6"
+					className="relative z-10 mx-auto flex h-full max-w-5xl flex-col justify-center px-4 py-8 sm:px-6"
 				>
 					<p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-300">
 						I NOSTRI SERVIZI
@@ -77,7 +77,7 @@ export default function ServiziPage() {
 				</div>
 			</div>
 
-			<main className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
+			<main className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
 				<section id="servizi" className="scroll-mt-24">
 					<h2 className="text-xl font-semibold text-zinc-900 sm:text-2xl">
 						Servizi
