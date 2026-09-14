@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -10,8 +10,21 @@ type Service = { id: string; name: string; duration: number | null; categories: 
 type Employee = { id: string; name: string };
 type Slot = { time: string; disabled: boolean };
 type ServiceCategory = "tutti" | "donna" | "uomo";
+type OpeningHour = { day_of_week: number; is_open: boolean };
+type SalonClosure = { start_date: string; end_date: string; all_day: boolean };
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const formatDate = (value: string) => new Intl.DateTimeFormat("it-IT", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`));
+
+function dayOfWeek(date: string) {
+	const day = new Date(`${date}T12:00:00Z`).getUTCDay();
+	return day === 0 ? 7 : day;
+}
+
+function isClosedDay(date: string, openingHours: OpeningHour[], closures: SalonClosure[]) {
+	if (closures.some((closure) => closure.all_day && date >= closure.start_date && date <= closure.end_date)) return true;
+	// If opening hours have been configured, a missing or closed weekday cannot be booked either.
+	return openingHours.length > 0 && !openingHours.some((hour) => hour.day_of_week === dayOfWeek(date) && hour.is_open);
+}
 
 export default function BookPage() {
 	return <Suspense fallback={<BookingPageFallback />}><BookPageContent /></Suspense>;
@@ -26,8 +39,12 @@ function BookPageContent() {
 	const [category, setCategory] = useState<ServiceCategory>("tutti");
 	const [date, setDate] = useState(today);
 	const [slots, setSlots] = useState<Slot[]>([]);
+	const [openingHours, setOpeningHours] = useState<OpeningHour[]>([]);
+	const [closures, setClosures] = useState<SalonClosure[]>([]);
 	const [time, setTime] = useState("");
 	const [name, setName] = useState("");
+	const [nameError, setNameError] = useState(false);
+	const nameErrorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [phone, setPhone] = useState("");
 	const [email, setEmail] = useState("");
 	const [loading, setLoading] = useState(true);
@@ -44,11 +61,20 @@ function BookPageContent() {
 	useEffect(() => {
 		void fetch("/api/booking").then(async (response) => {
 			const data = await response.json(); if (!response.ok) throw new Error(data.error);
-			setServices(data.services); setEmployees(data.employees);
+			setServices(data.services); setEmployees(data.employees); setOpeningHours(data.openingHours ?? []); setClosures(data.closures ?? []);
 			const requested = data.services.find((item: Service) => item.name === params.get("servizio")) ?? data.services[0];
 			setServiceId(requested?.id ?? ""); setEmployeeId(data.employees[0]?.id ?? "");
 		}).catch((error: Error) => toast.error(error.message)).finally(() => setLoading(false));
 	}, [params]);
+
+	useEffect(() => {
+		const firstBookableDate = dates.find((item) => !isClosedDay(item, openingHours, closures));
+		if (firstBookableDate && isClosedDay(date, openingHours, closures)) setDate(firstBookableDate);
+	}, [closures, date, dates, openingHours]);
+
+	useEffect(() => () => {
+		if (nameErrorTimeout.current) clearTimeout(nameErrorTimeout.current);
+	}, []);
 
 	useEffect(() => {
 		if (filteredServices.some((service) => service.id === serviceId)) return;
@@ -75,7 +101,15 @@ function BookPageContent() {
 	}, [date, employeeId, serviceId]);
 
 	async function submit(event: FormEvent) {
-		event.preventDefault(); setSaving(true);
+		event.preventDefault();
+		if (!name.trim()) {
+			toast.error("Inserisci il tuo nome completo.");
+			setNameError(true);
+			if (nameErrorTimeout.current) clearTimeout(nameErrorTimeout.current);
+			nameErrorTimeout.current = setTimeout(() => setNameError(false), 2000);
+			return;
+		}
+		setSaving(true);
 		try {
 			const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId, employeeId, date, time, name, phone, email }) });
 			const result = await response.json(); if (!response.ok) throw new Error(result.error);
@@ -87,16 +121,16 @@ function BookPageContent() {
 	if (complete) return <div className="min-h-[70vh] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-xl px-4 py-20"><div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"><h1 className="text-2xl font-semibold">Prenotazione confermata</h1><p className="mt-2 text-zinc-600">Ti aspettiamo {formatDate(date)} alle {time}.</p><Link href="/" className="mt-5 inline-block rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Torna alla home</Link></div></main></div>;
 
 	return <div className="min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-100"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16">
-		<header className="max-w-xl"><p className="text-xs font-semibold tracking-[.18em] text-zinc-400">PRENOTA ONLINE</p><h1 className="mt-2 text-2xl font-semibold leading-tight text-white sm:text-3xl">Scegli il tuo appuntamento</h1><p className="mt-2 text-sm leading-relaxed text-zinc-300">Gli orari occupati sono mostrati ma non selezionabili.</p></header>
-		{loading ? <p className="mt-8 text-sm text-zinc-300">Caricamento disponibilità...</p> : <form onSubmit={submit} className="mt-7 grid gap-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:mt-8 sm:gap-7 sm:p-7">
+		<header className="max-w-xl"><p className="text-xs font-semibold tracking-[.18em] text-zinc-400">PRENOTA ONLINE</p><h1 className="mt-2 text-2xl font-semibold leading-tight text-white sm:text-3xl">Scegli il tuo appuntamento</h1><p className="mt-2 text-sm leading-relaxed text-zinc-300">Gli orari occupati e i giorni di chiusura non sono selezionabili.</p></header>
+		{loading ? <p className="mt-8 text-sm text-zinc-300">Caricamento disponibilità...</p> : <form noValidate onSubmit={submit} className="mt-7 grid gap-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:mt-8 sm:gap-7 sm:p-7">
 			<Field label="Per chi è il servizio?"><div className="flex flex-wrap gap-2">{(["tutti", "donna", "uomo"] as const).map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold capitalize ${category === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"}`}>{item === "tutti" ? "Tutti" : item}</button>)}</div></Field>
 			<div className="grid gap-4 sm:grid-cols-2"><Field label="Servizio"><Select value={serviceId} onValueChange={setServiceId}><SelectTrigger className="min-h-11"><SelectValue placeholder="Seleziona servizio" /></SelectTrigger><SelectContent>{filteredServices.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}{item.duration ? ` · ${item.duration} min` : ""}</SelectItem>)}</SelectContent></Select>{filteredServices.length === 0 ? <p className="mt-2 text-xs text-zinc-500">Nessun servizio in questa categoria.</p> : null}</Field><Field label="Operatore"><Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger className="min-h-11"><SelectValue placeholder="Seleziona operatore" /></SelectTrigger><SelectContent>{employees.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></Field></div>
-			<Field label="Giorno"><div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-7">{dates.map((item) => <button key={item} type="button" aria-pressed={date === item} onClick={() => setDate(item)} className={`min-h-12 min-w-24 shrink-0 snap-start rounded-xl border px-3 py-2 text-xs font-semibold capitalize sm:min-w-0 sm:px-2 ${date === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"}`}>{formatDate(item)}</button>)}</div></Field>
+			<Field label="Giorno"><div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-7">{dates.map((item) => { const closed = isClosedDay(item, openingHours, closures); return <button key={item} type="button" disabled={closed} aria-pressed={date === item} aria-label={closed ? `${formatDate(item)}, chiuso` : formatDate(item)} onClick={() => setDate(item)} className={`min-h-12 min-w-24 shrink-0 snap-start rounded-xl border px-3 py-2 text-xs font-semibold capitalize sm:min-w-0 sm:px-2 ${date === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${closed ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{formatDate(item)}{closed ? <span className="mt-0.5 block text-[10px] normal-case">Chiuso</span> : null}</button>; })}</div></Field>
 			<Field label="Orario"><div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">{slots.map((item) => <button key={item.time} type="button" disabled={item.disabled} aria-pressed={time === item.time} onClick={() => setTime(item.time)} className={`min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold ${time === item.time ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${item.disabled ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{item.time}</button>)}</div>{slots.length === 0 && <p className="text-sm text-zinc-600">Nessun orario disponibile in questo giorno.</p>}</Field>
-			<div className="grid gap-4 sm:grid-cols-2"><Field label="Nome completo"><input required value={name} onChange={(event) => setName(event.target.value)} className="input" /></Field><Field label="Telefono"><input value={phone} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div>
+			<div className="grid gap-4 sm:grid-cols-2"><Field label="Nome completo"><input value={name} aria-invalid={nameError} onChange={(event) => setName(event.target.value)} className={`input ${nameError ? "input-error" : ""}`} /></Field><Field label="Telefono"><input value={phone} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div>
 			<p className="text-xs leading-relaxed text-zinc-500">Inserisci telefono o email per completare la prenotazione.</p><button disabled={saving || !time} className="min-h-12 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma prenotazione"}</button>
 		</form>}
-		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #d4d4d8; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#18181b; background:#fff; }`}</style>
+		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #d4d4d8; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#18181b; background:#fff; } .input-error { border-color:#ef4444; background:#fef2f2; }`}</style>
 	</main></div>;
 }
 

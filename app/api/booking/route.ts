@@ -59,11 +59,12 @@ export async function GET(request: NextRequest) {
 		const employeeId = request.nextUrl.searchParams.get("employeeId");
 		const date = request.nextUrl.searchParams.get("date");
 		if (serviceId && employeeId && date) return NextResponse.json({ slots: (await availableSlots(supabase, employeeId, serviceId, date)).slots });
-		const [services, employees, categories, categoryLinks] = await Promise.all([
+		const [services, employees, categories, categoryLinks, rules] = await Promise.all([
 			supabase.from("services").select("id, name, description, duration, price").eq("is_active", true).order("name"),
 			supabase.from("employees").select("id, name").eq("is_active", true).order("name"),
 			supabase.from("categories").select("id, name").eq("is_active", true).order("name"),
 			supabase.from("categories2services").select("service_id, categories_id, categories(name, is_active)"),
+			salonRules(supabase),
 		]);
 		if (services.error) throw services.error;
 		if (employees.error) throw employees.error;
@@ -88,6 +89,8 @@ export async function GET(request: NextRequest) {
 			})),
 			employees: employees.data ?? [],
 			categories: (categories.data ?? []).map((category) => ({ ...category, id: String(category.id) })),
+			// The booking calendar needs these rules up front to disable days when the salon is closed.
+			...rules,
 		});
 	} catch (error) {
 		return NextResponse.json({ error: error instanceof Error ? error.message : "Impossibile caricare la disponibilità." }, { status: 500 });
