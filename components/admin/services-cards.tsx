@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { ServiceCategoryItem, ServiceItem } from "./services-table";
 
 function CategoryBadge({ category }: { category: ServiceCategoryItem }) {
@@ -28,7 +31,38 @@ export function ServicesCards({ services }: { services: ServiceItem[] }) {
 	const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 	const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 	const [deletingId, setDeletingId] = useState<string | null>(null);
+	const [search, setSearch] = useState("");
+	const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+	const [categoryFilterOpen, setCategoryFilterOpen] = useState(false);
 	const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+	const categoryFilterRef = useRef<HTMLDivElement>(null);
+	const categories = [...new Set(services.flatMap((service) => service.categories.map((category) => category.name)))].sort((a, b) => a.localeCompare(b));
+	const filteredServices = services.filter((service) => {
+		const term = search.trim().toLocaleLowerCase("it-IT");
+		const matchesSearch = !term || [service.name, service.description ?? "", ...service.categories.map((category) => category.name)]
+			.some((value) => value.toLocaleLowerCase("it-IT").includes(term));
+		const matchesCategories = selectedCategories.length === 0 || service.categories.some((category) => selectedCategories.includes(category.name));
+		return matchesSearch && matchesCategories;
+	});
+
+	const toggleCategory = (categoryName: string) => {
+		setSelectedCategories((current) => current.includes(categoryName)
+			? current.filter((name) => name !== categoryName)
+			: [...current, categoryName]);
+	};
+
+	useEffect(() => {
+		if (!categoryFilterOpen) return;
+
+		const closeOnOutsideClick = (event: MouseEvent) => {
+			if (!categoryFilterRef.current?.contains(event.target as Node)) {
+				setCategoryFilterOpen(false);
+			}
+		};
+
+		document.addEventListener("mousedown", closeOnOutsideClick);
+		return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+	}, [categoryFilterOpen]);
 
 	const handleDelete = async (id: string) => {
 		if (!confirm("Sei sicuro di voler eliminare questo servizio?")) return;
@@ -62,8 +96,40 @@ export function ServicesCards({ services }: { services: ServiceItem[] }) {
 
 	return (
 		<>
-		<ul className="space-y-3 md:hidden">
-			{services.map((service) => (
+		<div className="md:hidden">
+			<div className="mb-4 space-y-3">
+				<div>
+					<label htmlFor="services-search-mobile" className="mb-1.5 block text-sm font-semibold text-zinc-900">Cerca servizi</label>
+					<div className="relative">
+						<Input id="services-search-mobile" type="text" inputMode="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, descrizione o categoria" className="pr-10" />
+						{search ? <button type="button" onClick={() => setSearch("")} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-red-500 transition hover:text-red-700" aria-label="Cancella ricerca"><X className="h-4 w-4" /></button> : null}
+					</div>
+				</div>
+				{categories.length > 0 ? (
+					<div ref={categoryFilterRef} className="relative">
+						<p className="mb-1.5 text-sm font-semibold text-zinc-900">Categorie</p>
+						<button type="button" onClick={() => setCategoryFilterOpen((open) => !open)} className={`h-10 w-full rounded-lg border px-3 text-left text-sm font-medium transition ${selectedCategories.length > 0 ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100"}`} aria-expanded={categoryFilterOpen} aria-controls="services-category-filter-mobile">Filtra categorie{selectedCategories.length > 0 ? ` (${selectedCategories.length})` : ""}</button>
+						{categoryFilterOpen ? (
+							<div id="services-category-filter-mobile" className="absolute left-0 top-full z-20 mt-1 w-full rounded-lg border border-zinc-200 bg-white p-3 shadow-lg">
+								<div className="mb-2 flex items-center justify-between gap-2">
+									<p className="text-sm font-semibold text-zinc-900">Categorie</p>
+									{selectedCategories.length > 0 ? <button type="button" onClick={() => setSelectedCategories([])} className="text-xs font-medium text-red-600 hover:text-red-700">Pulisci</button> : null}
+								</div>
+								<div className="max-h-56 space-y-2 overflow-y-auto">
+									{categories.map((category) => (
+										<label key={category} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+											<Checkbox checked={selectedCategories.includes(category)} onCheckedChange={() => toggleCategory(category)} />
+											{category}
+										</label>
+									))}
+								</div>
+							</div>
+						) : null}
+					</div>
+				) : null}
+			</div>
+		<ul className="space-y-3">
+			{filteredServices.map((service) => (
 				<li
 					key={service.id}
 					className="rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700"
@@ -135,7 +201,9 @@ export function ServicesCards({ services }: { services: ServiceItem[] }) {
 					</div>
 				</li>
 			))}
+			{filteredServices.length === 0 ? <li className="rounded-lg border border-zinc-200 p-4 text-sm text-zinc-600">Nessun servizio corrisponde alla ricerca.</li> : null}
 		</ul>
+		</div>
 
 		{openMenuId && menuPosition && typeof document !== "undefined"
 			? createPortal(

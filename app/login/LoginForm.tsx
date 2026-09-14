@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AuthSessionError } from "@/lib/employee-session";
 import { useAuthSession } from "@/components/auth/employee-session-provider";
@@ -10,7 +10,6 @@ const ERROR_VISIBILITY_MS = 3000;
 
 export default function OwnerLoginForm() {
 	const router = useRouter();
-	const searchParams = useSearchParams();
 	const { user, isLoading, signIn } = useAuthSession();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -29,10 +28,9 @@ export default function OwnerLoginForm() {
 		}
 
 		if (user) {
-			const next = searchParams.get("next") || "/admin/dashboard";
-			router.replace(next);
+			router.replace("/admin/dashboard");
 		}
-	}, [isLoading, router, searchParams, user]);
+	}, [isLoading, router, user]);
 
 	useEffect(() => {
 		if (status !== "error") {
@@ -83,8 +81,7 @@ export default function OwnerLoginForm() {
 			setMessage(
 				`Login effettuato con successo. Benvenuto${displayName ? `, ${displayName}` : ""}.`
 			);
-			const next = searchParams.get("next") || "/admin/dashboard";
-			router.push(next);
+			router.push("/admin/dashboard");
 		} catch (err) {
 			setStatus("error");
 			const errorMessage =
