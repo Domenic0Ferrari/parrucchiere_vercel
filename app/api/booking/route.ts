@@ -5,6 +5,12 @@ import { buildAvailableSlots, type OpeningHour, type SalonClosure, type TimeInte
 
 const TIME_ZONE = "Europe/Rome";
 
+function errorMessage(error: unknown, fallback: string) {
+	if (error instanceof Error) return error.message;
+	if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+	return fallback;
+}
+
 function client() {
 	const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 	const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -93,7 +99,8 @@ export async function GET(request: NextRequest) {
 			...rules,
 		});
 	} catch (error) {
-		return NextResponse.json({ error: error instanceof Error ? error.message : "Impossibile caricare la disponibilità." }, { status: 500 });
+		console.error("Booking availability error:", error);
+		return NextResponse.json({ error: errorMessage(error, "Impossibile caricare la disponibilità.") }, { status: 500 });
 	}
 }
 
@@ -127,6 +134,7 @@ export async function POST(request: NextRequest) {
 		if (error) throw error;
 		return NextResponse.json({ ok: true });
 	} catch (error) {
-		return NextResponse.json({ error: error instanceof Error ? error.message : "Impossibile salvare la prenotazione." }, { status: 500 });
+		console.error("Booking save error:", error);
+		return NextResponse.json({ error: errorMessage(error, "Impossibile salvare la prenotazione.") }, { status: 500 });
 	}
 }
