@@ -242,13 +242,12 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 								{category.displayOrder !== null ? category.displayOrder : "—"}
 							</td>
 							<td className="px-4 py-3">
-								<span className="inline-flex items-center gap-2 text-xs text-zinc-600">
+								<span className="inline-flex items-center">
 									<span
 										className="h-5 w-5 rounded-full border border-zinc-300"
 										style={{ backgroundColor: isHexColor(category.color) ? category.color : "#18181b" }}
-										aria-label={`Colore ${category.color ?? "predefinito"}`}
+										aria-label="Colore categoria"
 									/>
-									{category.color?.toUpperCase() ?? "#18181B"}
 								</span>
 							</td>
 							<td className="px-4 py-3">
