@@ -20,6 +20,7 @@ function normalizeCategory(row: RawCategory): {
 	name: string;
 	displayOrder: number;
 	isActive: boolean;
+	color: string | null;
 } {
 	const id = String(row.id ?? "");
 	const name = String(row.name ?? row.nome ?? row.title ?? "");
@@ -32,6 +33,7 @@ function normalizeCategory(row: RawCategory): {
 		displayOrder: toNullableNumber(displayOrderValue) ?? 0,
 		isActive:
 			isActiveValue === true || isActiveValue === "true" || isActiveValue === 1,
+		color: typeof row.color === "string" ? row.color : null,
 	};
 }
 
