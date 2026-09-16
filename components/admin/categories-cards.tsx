@@ -131,6 +131,13 @@ export function CategoriesCards({ categories }: { categories: CategoryItem[] }) 
 										<span>Posizione: —</span>
 									)}
 								</div>
+								<div className="mt-2 inline-flex items-center gap-2 text-xs text-zinc-600">
+									<span
+										className="h-4 w-4 rounded-full border border-zinc-300"
+										style={{ backgroundColor: isHexColor(category.color) ? category.color : "#18181b" }}
+									/>
+									Colore: {category.color?.toUpperCase() ?? "#18181B"}
+								</div>
 							</div>
 							{isAdmin ? (
 								<div className="shrink-0">
@@ -261,4 +268,8 @@ export function CategoriesCards({ categories }: { categories: CategoryItem[] }) 
 			/>
 		</>
 	);
+}
+
+function isHexColor(value: string | null): value is string {
+	return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 }

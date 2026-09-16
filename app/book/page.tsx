@@ -45,11 +45,15 @@ function BookPageContent() {
 	const [name, setName] = useState("");
 	const [nameError, setNameError] = useState(false);
 	const nameErrorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const continueToDetailsRef = useRef<HTMLButtonElement | null>(null);
+	const bookingFormRef = useRef<HTMLFormElement | null>(null);
+	const shouldScrollToStepRef = useRef(false);
 	const [phone, setPhone] = useState("");
 	const [email, setEmail] = useState("");
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [complete, setComplete] = useState(false);
+	const [step, setStep] = useState<1 | 2 | 3>(1);
 	const dates = useMemo(() => {
 		const first = new Date(`${today()}T12:00:00Z`);
 		return Array.from({ length: 28 }, (_, index) => { const next = new Date(first); next.setUTCDate(first.getUTCDate() + index); return next.toISOString().slice(0, 10); });
@@ -82,6 +86,15 @@ function BookPageContent() {
 	}, [filteredServices, serviceId]);
 
 	useEffect(() => {
+		if (!shouldScrollToStepRef.current) return;
+		shouldScrollToStepRef.current = false;
+		const scrollToStepStart = () => bookingFormRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+		window.requestAnimationFrame(scrollToStepStart);
+		const timer = window.setTimeout(scrollToStepStart, 80);
+		return () => window.clearTimeout(timer);
+	}, [step]);
+
+	useEffect(() => {
 		if (!serviceId || !employeeId) return;
 		let active = true;
 		setTime("");
@@ -109,6 +122,10 @@ function BookPageContent() {
 			nameErrorTimeout.current = setTimeout(() => setNameError(false), 2000);
 			return;
 		}
+		if (!phone.trim() && !email.trim()) {
+			toast.error("Inserisci almeno telefono o email.");
+			return;
+		}
 		setSaving(true);
 		try {
 			const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId, employeeId, date, time, name, phone, email }) });
@@ -118,17 +135,51 @@ function BookPageContent() {
 		finally { setSaving(false); }
 	}
 
+	function goToTimes() {
+		if (!serviceId || !employeeId || !date) {
+			toast.error("Seleziona servizio, operatore e giorno per continuare.");
+			return;
+		}
+		changeStep(2);
+	}
+
+	function goToDetails() {
+		if (!time) {
+			toast.error("Seleziona un orario per continuare.");
+			return;
+		}
+		changeStep(3);
+	}
+
+	function changeStep(nextStep: 1 | 2 | 3) {
+		shouldScrollToStepRef.current = true;
+		setStep(nextStep);
+	}
+
+	function selectTime(nextTime: string) {
+		setTime(nextTime);
+		if (!window.matchMedia("(max-width: 767px)").matches) return;
+		window.requestAnimationFrame(() => {
+			continueToDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+			continueToDetailsRef.current?.focus({ preventScroll: true });
+		});
+	}
+
 	if (complete) return <div className="min-h-[70vh] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-xl px-4 py-20"><div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"><h1 className="text-2xl font-semibold">Prenotazione confermata</h1><p className="mt-2 text-zinc-600">Ti aspettiamo {formatDate(date)} alle {time}.</p><Link href="/" className="mt-5 inline-block rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Torna alla home</Link></div></main></div>;
 
 	return <div className="min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-100"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16">
-		<header className="max-w-xl"><p className="text-xs font-semibold tracking-[.18em] text-zinc-400">PRENOTA ONLINE</p><h1 className="mt-2 text-2xl font-semibold leading-tight text-white sm:text-3xl">Scegli il tuo appuntamento</h1><p className="mt-2 text-sm leading-relaxed text-zinc-300">Gli orari occupati e i giorni di chiusura non sono selezionabili.</p></header>
-		{loading ? <p className="mt-8 text-sm text-zinc-300">Caricamento disponibilità...</p> : <form noValidate onSubmit={submit} className="mt-7 grid gap-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:mt-8 sm:gap-7 sm:p-7">
-			<Field label="Per chi è il servizio?"><div className="flex flex-wrap gap-2">{(["tutti", "donna", "uomo"] as const).map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold capitalize ${category === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"}`}>{item === "tutti" ? "Tutti" : item}</button>)}</div></Field>
-			<div className="grid gap-4 sm:grid-cols-2"><Field label="Servizio"><Select value={serviceId} onValueChange={setServiceId}><SelectTrigger className="min-h-11"><SelectValue placeholder="Seleziona servizio" /></SelectTrigger><SelectContent>{filteredServices.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}{item.duration ? ` · ${item.duration} min` : ""}</SelectItem>)}</SelectContent></Select>{filteredServices.length === 0 ? <p className="mt-2 text-xs text-zinc-500">Nessun servizio in questa categoria.</p> : null}</Field><Field label="Operatore"><Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger className="min-h-11"><SelectValue placeholder="Seleziona operatore" /></SelectTrigger><SelectContent>{employees.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></Field></div>
-			<Field label="Giorno"><div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-7">{dates.map((item) => { const closed = isClosedDay(item, openingHours, closures); return <button key={item} type="button" disabled={closed} aria-pressed={date === item} aria-label={closed ? `${formatDate(item)}, chiuso` : formatDate(item)} onClick={() => setDate(item)} className={`min-h-12 min-w-24 shrink-0 snap-start rounded-xl border px-3 py-2 text-xs font-semibold capitalize sm:min-w-0 sm:px-2 ${date === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${closed ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{formatDate(item)}{closed ? <span className="mt-0.5 block text-[10px] normal-case">Chiuso</span> : null}</button>; })}</div></Field>
-			<Field label="Orario"><div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">{slots.map((item) => <button key={item.time} type="button" disabled={item.disabled} aria-pressed={time === item.time} onClick={() => setTime(item.time)} className={`min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold ${time === item.time ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${item.disabled ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{item.time}</button>)}</div>{slots.length === 0 && <p className="text-sm text-zinc-600">Nessun orario disponibile in questo giorno.</p>}</Field>
-			<div className="grid gap-4 sm:grid-cols-2"><Field label="Nome completo"><input value={name} aria-invalid={nameError} onChange={(event) => setName(event.target.value)} className={`input ${nameError ? "input-error" : ""}`} /></Field><Field label="Telefono"><input value={phone} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div>
-			<p className="text-xs leading-relaxed text-zinc-500">Inserisci telefono o email per completare la prenotazione.</p><button disabled={saving || !time} className="min-h-12 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma prenotazione"}</button>
+		{loading ? <p className="text-sm text-zinc-300">Caricamento disponibilità...</p> : <form ref={bookingFormRef} noValidate onSubmit={submit} className="scroll-mt-[calc(var(--navbar-height)+1rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-7">
+			<div className="mb-6 grid grid-cols-3 gap-1.5 sm:mb-7 sm:gap-2" aria-label="Avanzamento prenotazione">
+				{([1, 2, 3] as const).map((item) => <div key={item} className={`rounded-lg px-1.5 py-2 text-center text-[11px] font-semibold sm:px-2 sm:text-xs ${step === item ? "bg-zinc-900 text-white" : step > item ? "bg-zinc-200 text-zinc-800" : "bg-zinc-100 text-zinc-500"}`}>{item}. {item === 1 ? "Dettagli" : item === 2 ? "Orario" : "Contatti"}</div>)}
+			</div>
+			{step === 1 ? <div className="grid gap-6">
+				<Field label="Per chi è il servizio?"><div className="flex flex-wrap gap-2">{(["tutti", "donna", "uomo"] as const).map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold capitalize ${category === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"}`}>{item === "tutti" ? "Tutti" : item}</button>)}</div></Field>
+				<div className="grid gap-4 sm:grid-cols-2"><Field label="Servizio"><Select value={serviceId} onValueChange={setServiceId}><SelectTrigger className="min-h-11"><SelectValue placeholder="Seleziona servizio" /></SelectTrigger><SelectContent>{filteredServices.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}{item.duration ? ` · ${item.duration} min` : ""}</SelectItem>)}</SelectContent></Select>{filteredServices.length === 0 ? <p className="mt-2 text-xs text-zinc-500">Nessun servizio in questa categoria.</p> : null}</Field><Field label="Operatore"><Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger className="min-h-11"><SelectValue placeholder="Seleziona operatore" /></SelectTrigger><SelectContent>{employees.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></Field></div>
+				<Field label="Giorno"><div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-7">{dates.map((item) => { const closed = isClosedDay(item, openingHours, closures); return <button key={item} type="button" disabled={closed} aria-pressed={date === item} aria-label={closed ? `${formatDate(item)}, chiuso` : formatDate(item)} onClick={() => setDate(item)} className={`min-h-12 min-w-24 shrink-0 snap-start rounded-xl border px-3 py-2 text-xs font-semibold capitalize sm:min-w-0 sm:px-2 ${date === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${closed ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{formatDate(item)}{closed ? <span className="mt-0.5 block text-[10px] normal-case">Chiuso</span> : null}</button>; })}</div></Field>
+				<button type="button" onClick={goToTimes} className="min-h-12 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button>
+			</div> : null}
+			{step === 2 ? <div className="grid gap-6"><Field label="Orario"><div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">{slots.map((item) => <button key={item.time} type="button" disabled={item.disabled} aria-pressed={time === item.time} onClick={() => selectTime(item.time)} className={`min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold ${time === item.time ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${item.disabled ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{item.time}</button>)}</div>{slots.length === 0 && <p className="text-sm text-zinc-600">Nessun orario disponibile in questo giorno.</p>}</Field><div className="flex gap-3"><button type="button" onClick={() => changeStep(1)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button ref={continueToDetailsRef} type="button" onClick={goToDetails} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button></div></div> : null}
+			{step === 3 ? <div className="grid gap-6"><div className="grid gap-4 sm:grid-cols-2"><Field label="Nome e cognome"><input value={name} aria-invalid={nameError} onChange={(event) => setName(event.target.value)} className={`input ${nameError ? "input-error" : ""}`} /></Field><Field label="Telefono"><input value={phone} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div><p className="text-xs leading-relaxed text-zinc-500">Inserisci telefono o email per completare la prenotazione.</p><div className="flex gap-3"><button type="button" onClick={() => changeStep(2)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button disabled={saving} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma"}</button></div></div> : null}
 		</form>}
 		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #d4d4d8; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#18181b; background:#fff; } .input-error { border-color:#ef4444; background:#fef2f2; }`}</style>
 	</main></div>;

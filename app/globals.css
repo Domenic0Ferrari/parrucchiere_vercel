@@ -26,6 +26,18 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Mantiene un feedback coerente per mouse/trackpad senza alterare i controlli disabilitati. */
+button:not(:disabled),
+a[href],
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer !important;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed !important;
+}
+
 /* Safari ingrandisce automaticamente la pagina quando un campo attivo ha un font inferiore a 16px. */
 @media (max-width: 767px) {
   input:not([type="checkbox"]):not([type="radio"]),

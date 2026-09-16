@@ -11,6 +11,7 @@ export type CategoryItem = {
 	name: string;
 	displayOrder: number | null;
 	isActive: boolean;
+	color: string | null;
 };
 
 const TABLE_NAME = "categories";
@@ -37,6 +38,7 @@ function normalizeCategory(row: RawCategory, index: number): CategoryItem {
 		name,
 		displayOrder: toNullableNumber(displayOrderValue),
 		isActive: isActiveValue === true || isActiveValue === "true" || isActiveValue === 1,
+		color: typeof row.color === "string" ? row.color : null,
 	};
 }
 

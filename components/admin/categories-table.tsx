@@ -20,6 +20,7 @@ export type CategoryItem = {
 	name: string;
 	displayOrder: number | null;
 	isActive: boolean;
+	color: string | null;
 };
 
 type SortKey = "name" | "displayOrder" | "isActive";
@@ -203,6 +204,9 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 							</button>
 						</th>
 						<th className="px-4 py-3">
+							<span className="font-semibold text-zinc-900">Colore</span>
+						</th>
+						<th className="px-4 py-3">
 							<button
 								type="button"
 								onClick={() => handleSort("isActive")}
@@ -236,6 +240,16 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 							</td>
 							<td className="px-4 py-3 text-zinc-600">
 								{category.displayOrder !== null ? category.displayOrder : "—"}
+							</td>
+							<td className="px-4 py-3">
+								<span className="inline-flex items-center gap-2 text-xs text-zinc-600">
+									<span
+										className="h-5 w-5 rounded-full border border-zinc-300"
+										style={{ backgroundColor: isHexColor(category.color) ? category.color : "#18181b" }}
+										aria-label={`Colore ${category.color ?? "predefinito"}`}
+									/>
+									{category.color?.toUpperCase() ?? "#18181B"}
+								</span>
 							</td>
 							<td className="px-4 py-3">
 								<StatusBadge isActive={category.isActive} />
@@ -353,4 +367,8 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 			/>
 		</div>
 	);
+}
+
+function isHexColor(value: string | null): value is string {
+	return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 }
