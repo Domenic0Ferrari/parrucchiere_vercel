@@ -597,7 +597,7 @@ export function SalonManagementPage({ section }: { section: SalonManagementSecti
 							return (
 								<div
 									key={hour.day_of_week}
-									className="grid min-w-0 gap-5 rounded-xl border border-zinc-200 p-3 sm:p-4 lg:grid-cols-[9rem_1fr_1fr]"
+									className="grid min-w-0 overflow-hidden gap-5 rounded-xl border border-zinc-200 p-3 sm:p-4 lg:grid-cols-[9rem_1fr_1fr]"
 								>
 									<div className="flex items-center justify-between gap-3 lg:block">
 										<p className="font-semibold text-zinc-900">{day?.label}</p>
@@ -973,6 +973,7 @@ function TimeRange({
 					<Input
 						id={startId}
 						type="time"
+						className="salon-time-input"
 						value={start}
 						disabled={disabled}
 						onChange={(event) => onStartChange(event.target.value)}
@@ -982,6 +983,7 @@ function TimeRange({
 					<Input
 						id={endId}
 						type="time"
+						className="salon-time-input"
 						value={end}
 						disabled={disabled}
 						onChange={(event) => onEndChange(event.target.value)}

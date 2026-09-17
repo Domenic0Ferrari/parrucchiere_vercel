@@ -48,8 +48,8 @@ export default function ServiziPage() {
 	), [selectedCategory, services]);
 
 	return (
-		<div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
-			<main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+		<div className="min-h-[calc(100dvh-var(--navbar-height))] bg-zinc-50 font-sans text-zinc-900">
+			<main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 md:py-8">
 				<section id="servizi" className="scroll-mt-24">
 					<header className="max-w-2xl">
 						<p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">

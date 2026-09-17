@@ -53,6 +53,15 @@ export default function Navbar() {
 		};
 	}, [isAdminRoute]);
 
+	useEffect(() => {
+		if (isAdminRoute || !menuOpen) return;
+		const previousOverflow = document.body.style.overflow;
+		document.body.style.overflow = "hidden";
+		return () => {
+			document.body.style.overflow = previousOverflow;
+		};
+	}, [isAdminRoute, menuOpen]);
+
 	const handleAdminSidebarToggle = () => {
 		window.dispatchEvent(new CustomEvent("admin-sidebar-toggle"));
 	};
@@ -74,7 +83,6 @@ export default function Navbar() {
 							height={36}
 							className="size-9 object-contain"
 						/>
-						{/* <span>{isAdminRoute ? "Admin Panel" : "Salone Online"}</span> */}
 					</Link>
 					{isAdminRoute ? (
 						<button
@@ -118,29 +126,39 @@ export default function Navbar() {
 							</div>
 						</button>
 					)}
-				</nav>
-				{isAdminRoute ? null : (
-					<div
-						className={`absolute left-0 right-0 top-full z-50 border-b border-white/10 bg-gradient-to-b from-brand/95 to-brand-hover/90 px-4 pb-4 pt-2 shadow-md backdrop-blur-xl transition duration-200 md:hidden sm:px-6 ${menuOpen
-							? "translate-y-0 opacity-100"
-							: "pointer-events-none -translate-y-2 opacity-0"
-							}`}
-					>
-						<div className="space-y-1 rounded-xl border border-white/15 bg-black/35 p-3 text-sm text-zinc-100">
-							{navItems.map((item) => (
-								<Link
-									key={item.href}
-									href={item.href}
-									className={`block rounded-lg px-2 py-1.5 transition hover:bg-white/10 ${getMobileMenuLinkClasses(pathname, item.href)}`}
-									onClick={() => setMenuOpen(false)}
-								>
-									{item.label}
-								</Link>
-							))}
+					</nav>
+				</div>
+				{!isAdminRoute && menuOpen ? (
+					<div className="fixed inset-0 z-[9999] bg-brand text-white md:hidden">
+						<div className="mobile-menu-enter flex min-h-[100dvh] flex-col px-6 py-6">
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-3 text-sm font-semibold tracking-wide">
+									<div className="flex size-12 items-center justify-center rounded-full bg-white/90 shadow-sm">
+										<Image src="/logo.png" alt="" width={40} height={40} className="size-9 object-contain" />
+									</div>
+									{/* <span>Salone Online</span> */}
+								</div>
+								<button type="button" onClick={() => setMenuOpen(false)} aria-label="Chiudi il menu" className="inline-flex size-11 items-center justify-center rounded-full border border-white/25 bg-white/10 transition hover:bg-white/20">
+									<X className="size-5" />
+								</button>
+							</div>
+							<nav className="my-auto flex flex-col gap-2 py-10" aria-label="Navigazione principale">
+								{navItems.map((item, index) => (
+									<Link
+										key={item.href}
+										href={item.href}
+										className={`mobile-menu-link rounded-2xl px-4 py-4 text-2xl font-semibold ${getMobileMenuLinkClasses(pathname, item.href)}`}
+										style={{ animationDelay: `${80 + index * 55}ms` }}
+										onClick={() => setMenuOpen(false)}
+									>
+										{item.label}
+									</Link>
+								))}
+							</nav>
+							<Link href="/service" onClick={() => setMenuOpen(false)} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-zinc-900 shadow-lg transition hover:bg-zinc-100">Prenota</Link>
 						</div>
 					</div>
-				)}
-			</div>
+					) : null}
 		</header>
 	);
 }

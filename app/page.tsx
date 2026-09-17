@@ -3,49 +3,48 @@ import Image from "next/image";
 
 export default function Home() {
 	return (
-		<div className="home-viewport bg-brand font-sans text-white">
-			<div className="relative h-full w-full overflow-hidden">
-				<Image
-					src="/hero.jpg"
-					alt="Taglio maschile in salone"
-					fill
-					priority
-					className="absolute inset-0 h-full w-full object-cover"
-				/>
-				<main
-					id="home"
-					className="relative z-10 flex h-full items-center px-4 sm:px-8"
-				>
-					<section className="mx-auto flex w-full max-w-5xl flex-col justify-center gap-3 sm:gap-4">
-						<p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-300">
-							CHI SONO
-						</p>
-						<h1 className="max-w-xl text-balance text-[1.9rem] font-semibold leading-tight tracking-tight sm:text-3xl md:text-4xl">
+		<div className="bg-zinc-50 font-sans">
+			<main
+				id="home"
+				className="mx-auto grid min-h-[calc(100dvh-var(--navbar-height))] max-w-[1440px] overflow-hidden lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"
+			>
+				<section className="flex min-h-[22rem] flex-col justify-center bg-zinc-950 px-6 py-12 text-white sm:px-10 sm:py-16 lg:min-h-0 lg:px-12 xl:px-16">
+					<div className="max-w-xl">
+						<h1 className="mt-4 text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl xl:text-6xl">
 							Curo i tuoi capelli con attenzione artigianale e stile su misura.
 						</h1>
-						<p className="max-w-lg text-sm leading-relaxed text-zinc-200 sm:text-base">
-							Sono un parrucchiere specializzato in tagli e colorazioni
-							personalizzate. Ascolto le tue esigenze, studio il tuo viso e ti
-							consiglio il look pi&ugrave; adatto, utilizzando solo prodotti
-							selezionati e tecniche aggiornate.
+						<p className="mt-5 max-w-lg text-sm leading-relaxed text-zinc-200 sm:text-base">
+							Ascolto le tue esigenze, studio il tuo viso e ti consiglio il look più adatto, con prodotti selezionati e tecniche aggiornate.
 						</p>
-						<div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:gap-3">
+						<div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
 							<a
 								href="/service"
-								className="inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-zinc-900 shadow-lg shadow-brand/20 transition hover:-translate-y-0.5 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-white/40 sm:w-48 sm:px-6 sm:py-3"
+								className="inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-white/40 sm:w-48"
 							>
 								Prenota
 							</a>
 							<a
 								href="/contacts"
-								className="inline-flex w-full items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-medium text-white backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 sm:w-48 sm:px-6 sm:py-3"
+								className="inline-flex w-full items-center justify-center rounded-full border border-white/35 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 sm:w-48"
 							>
 								Contattaci
 							</a>
 						</div>
-					</section>
-				</main>
-			</div>
+					</div>
+				</section>
+
+				<div className="relative h-[44dvh] min-h-72 sm:h-[26rem] lg:h-auto lg:min-h-0">
+				<Image
+					src="/home-hero.avif"
+					alt="Immagine del salone"
+					fill
+					priority
+					quality={100}
+					sizes="100vw"
+					className="object-cover"
+				/>
+				</div>
+			</main>
 		</div>
 	);
 }

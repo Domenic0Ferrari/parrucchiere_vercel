@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoadingIndicator } from "@/components/ui/loading-indicator";
@@ -49,6 +50,7 @@ function BookPageContent() {
 	const nameErrorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const continueToDetailsRef = useRef<HTMLButtonElement | null>(null);
 	const bookingFormRef = useRef<HTMLFormElement | null>(null);
+	const datesScrollerRef = useRef<HTMLDivElement | null>(null);
 	const shouldScrollToStepRef = useRef(false);
 	const [phone, setPhone] = useState("");
 	const [email, setEmail] = useState("");
@@ -90,6 +92,7 @@ function BookPageContent() {
 	useEffect(() => {
 		if (!shouldScrollToStepRef.current) return;
 		shouldScrollToStepRef.current = false;
+		if (!window.matchMedia("(max-width: 767px)").matches) return;
 		const scrollToStepStart = () => bookingFormRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
 		window.requestAnimationFrame(scrollToStepStart);
 		const timer = window.setTimeout(scrollToStepStart, 80);
@@ -162,6 +165,12 @@ function BookPageContent() {
 		setStep(nextStep);
 	}
 
+	function scrollDates(direction: -1 | 1) {
+		const scroller = datesScrollerRef.current;
+		if (!scroller) return;
+		scroller.scrollBy({ left: direction * Math.max(scroller.clientWidth - 16, 160), behavior: "smooth" });
+	}
+
 	function selectTime(nextTime: string) {
 		setTime(nextTime);
 		if (!window.matchMedia("(max-width: 767px)").matches) return;
@@ -177,7 +186,7 @@ function BookPageContent() {
 
 	if (complete) return <div className="min-h-[calc(100dvh-var(--navbar-height))] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-xl px-4 py-20"><div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"><h1 className="text-2xl font-semibold">Prenotazione confermata</h1><p className="mt-2 text-zinc-600">Ti aspettiamo {formatDate(date)} alle {time}.</p><Link href="/" className="mt-5 inline-block rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Torna alla home</Link></div></main></div>;
 
-	return <div className="min-h-[calc(100dvh-var(--navbar-height))] overflow-x-hidden bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16">
+	return <div className="min-h-[calc(100dvh-var(--navbar-height))] overflow-x-hidden bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16 md:py-8">
 		{loading ? <LoadingIndicator className="min-h-64" label="Caricamento disponibilità..." /> : <form ref={bookingFormRef} noValidate onSubmit={submit} className="scroll-mt-[calc(var(--navbar-height)+1rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-7">
 			<div className="mb-6 grid grid-cols-3 gap-1.5 sm:mb-7 sm:gap-2" aria-label="Avanzamento prenotazione">
 				{([1, 2, 3] as const).map((item) => <div key={item} className={`rounded-lg px-1.5 py-2 text-center text-[11px] font-semibold sm:px-2 sm:text-xs ${step === item ? "bg-zinc-900 text-white" : step > item ? "bg-zinc-200 text-zinc-800" : "bg-zinc-100 text-zinc-500"}`}>{item}. {item === 1 ? "Dettagli" : item === 2 ? "Orario" : "Contatti"}</div>)}
@@ -185,7 +194,7 @@ function BookPageContent() {
 			{step === 1 ? <div className="grid gap-6">
 				<Field label="Per chi è il servizio?"><div className="flex flex-wrap gap-2">{(["tutti", "donna", "uomo"] as const).map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold capitalize ${category === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"}`}>{item === "tutti" ? "Tutti" : item}</button>)}</div></Field>
 				<div className="grid gap-4 sm:grid-cols-2"><Field label="Servizio"><Select value={serviceId} onValueChange={setServiceId}><SelectTrigger className="min-h-11"><SelectValue placeholder="Seleziona servizio" /></SelectTrigger><SelectContent>{filteredServices.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}{item.duration ? ` · ${item.duration} min` : ""}</SelectItem>)}</SelectContent></Select>{filteredServices.length === 0 ? <p className="mt-2 text-xs text-zinc-500">Nessun servizio in questa categoria.</p> : null}</Field><Field label="Operatore"><Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger className="min-h-11"><SelectValue placeholder="Seleziona operatore" /></SelectTrigger><SelectContent>{employees.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></Field></div>
-				<Field label="Giorno"><div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-7">{dates.map((item) => { const closed = isClosedDay(item, openingHours, closures); return <button key={item} type="button" disabled={closed} aria-pressed={date === item} aria-label={closed ? `${formatDate(item)}, chiuso` : formatDate(item)} onClick={() => setDate(item)} className={`min-h-12 min-w-24 shrink-0 snap-start rounded-xl border px-3 py-2 text-xs font-semibold capitalize sm:min-w-0 sm:px-2 ${date === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${closed ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{formatDate(item)}{closed ? <span className="mt-0.5 block text-[10px] normal-case">Chiuso</span> : null}</button>; })}</div></Field>
+				<Field label="Giorno" action={<div className="flex items-center gap-1"><button type="button" onClick={() => scrollDates(-1)} className="inline-flex size-7 items-center justify-center rounded-md text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900" aria-label="Settimana precedente"><ChevronLeft className="size-4" /></button><button type="button" onClick={() => scrollDates(1)} className="inline-flex size-7 items-center justify-center rounded-md text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900" aria-label="Settimana successiva"><ChevronRight className="size-4" /></button></div>}><div ref={datesScrollerRef} className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0 lg:pb-0">{dates.map((item) => { const closed = isClosedDay(item, openingHours, closures); return <button key={item} type="button" disabled={closed} aria-pressed={date === item} aria-label={closed ? `${formatDate(item)}, chiuso` : formatDate(item)} onClick={() => setDate(item)} className={`min-h-12 min-w-24 shrink-0 snap-start rounded-xl border px-3 py-2 text-xs font-semibold capitalize sm:px-2 lg:min-w-[calc((100%-3rem)/7)] ${date === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${closed ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{formatDate(item)}{closed ? <span className="mt-0.5 block text-[10px] normal-case">Chiuso</span> : null}</button>; })}</div></Field>
 				<button type="button" onClick={goToTimes} className="min-h-12 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button>
 			</div> : null}
 			{step === 2 ? <div className="grid gap-6"><Field label="Orario">{slotsLoading ? <LoadingIndicator className="min-h-32 rounded-xl border border-zinc-200 bg-zinc-50" label="Caricamento orari disponibili..." /> : <><div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">{slots.map((item) => <button key={item.time} type="button" disabled={item.disabled} aria-pressed={time === item.time} onClick={() => selectTime(item.time)} className={`min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold ${time === item.time ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${item.disabled ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{item.time}</button>)}</div>{slots.length === 0 && <p className="text-sm text-zinc-600">Nessun orario disponibile in questo giorno.</p>}</>}</Field><div className="flex gap-3"><button type="button" onClick={() => changeStep(1)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button ref={continueToDetailsRef} type="button" onClick={goToDetails} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button></div></div> : null}
@@ -199,4 +208,4 @@ function BookingPageFallback() {
 	return <div className="min-h-[calc(100dvh-var(--navbar-height))] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16"><LoadingIndicator className="min-h-64" label="Caricamento disponibilità..." /></main></div>;
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) { return <div className="min-w-0"><label className="mb-2 block text-sm font-semibold text-zinc-800">{label}</label>{children}</div>; }
+function Field({ label, action, children }: { label: string; action?: ReactNode; children: ReactNode }) { return <div className="min-w-0"><div className="mb-2 flex min-h-7 items-center justify-between gap-3"><label className="text-sm font-semibold text-zinc-800">{label}</label>{action}</div>{children}</div>; }

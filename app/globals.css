@@ -88,6 +88,33 @@ body {
   background-color: color-mix(in srgb, var(--color-brand) 45%, transparent);
 }
 
+@keyframes mobile-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-menu-enter {
+  animation: mobile-menu-enter 260ms ease-out both;
+}
+
+.mobile-menu-link {
+  animation: mobile-menu-enter 320ms ease-out both;
+}
+
+/* Safari può espandere i controlli nativi per l'orario oltre la loro colonna. */
+@media (max-width: 767px) {
+  .salon-time-input {
+    max-width: calc(100vw - 6.5rem) !important;
+  }
+}
+
 /* Mantiene un feedback coerente per mouse/trackpad senza alterare i controlli disabilitati. */
 button:not(:disabled),
 a[href],
