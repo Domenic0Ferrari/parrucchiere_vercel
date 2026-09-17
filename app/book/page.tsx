@@ -34,6 +34,7 @@ export default function BookPage() {
 
 function BookPageContent() {
 	const params = useSearchParams();
+	const requestedServiceName = params.get("servizio");
 	const [services, setServices] = useState<Service[]>([]);
 	const [employees, setEmployees] = useState<Employee[]>([]);
 	const [serviceId, setServiceId] = useState("");
@@ -70,10 +71,10 @@ function BookPageContent() {
 		void fetch("/api/booking").then(async (response) => {
 			const data = await response.json(); if (!response.ok) throw new Error(data.error);
 			setServices(data.services); setEmployees(data.employees); setOpeningHours(data.openingHours ?? []); setClosures(data.closures ?? []);
-			const requested = data.services.find((item: Service) => item.name === params.get("servizio")) ?? data.services[0];
+			const requested = data.services.find((item: Service) => item.name === requestedServiceName) ?? data.services[0];
 			setServiceId(requested?.id ?? ""); setEmployeeId(data.employees[0]?.id ?? "");
 		}).catch((error: Error) => toast.error(error.message)).finally(() => setLoading(false));
-	}, [params]);
+	}, [requestedServiceName]);
 
 	useEffect(() => {
 		const firstBookableDate = dates.find((item) => !isClosedDay(item, openingHours, closures));

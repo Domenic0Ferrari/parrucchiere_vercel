@@ -90,11 +90,12 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({
 			services: (services.data ?? []).map((service) => ({
 				...service,
+				id: String(service.id),
 				categories: (categoriesByService.get(String(service.id)) ?? []).map((category) => category.name),
 				categoryDetails: categoriesByService.get(String(service.id)) ?? [],
 				categoryIds: categoryIdsByService.get(String(service.id)) ?? [],
 			})),
-			employees: employees.data ?? [],
+			employees: (employees.data ?? []).map((employee) => ({ ...employee, id: String(employee.id) })),
 			categories: (categories.data ?? []).map((category) => ({ ...category, id: String(category.id) })),
 			// The booking calendar needs these rules up front to disable days when the salon is closed.
 			...rules,
