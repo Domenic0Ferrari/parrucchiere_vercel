@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LoadingIndicator } from "@/components/ui/loading-indicator";
 
 type Service = { id: string; name: string; duration: number | null; categories: string[] };
 type Employee = { id: string; name: string };
@@ -39,6 +40,7 @@ function BookPageContent() {
 	const [category, setCategory] = useState<ServiceCategory>("tutti");
 	const [date, setDate] = useState(today);
 	const [slots, setSlots] = useState<Slot[]>([]);
+	const [slotsLoading, setSlotsLoading] = useState(false);
 	const [openingHours, setOpeningHours] = useState<OpeningHour[]>([]);
 	const [closures, setClosures] = useState<SalonClosure[]>([]);
 	const [time, setTime] = useState("");
@@ -98,6 +100,7 @@ function BookPageContent() {
 		if (!serviceId || !employeeId) return;
 		let active = true;
 		setTime("");
+		setSlotsLoading(true);
 		void fetch(`/api/booking?serviceId=${encodeURIComponent(serviceId)}&employeeId=${encodeURIComponent(employeeId)}&date=${date}`)
 			.then(async (response) => {
 				const data = await response.json() as { error?: string; slots?: unknown };
@@ -109,6 +112,9 @@ function BookPageContent() {
 				if (!active) return;
 				setSlots([]);
 				toast.error(error.message);
+			})
+			.finally(() => {
+				if (active) setSlotsLoading(false);
 			});
 		return () => { active = false; };
 	}, [date, employeeId, serviceId]);
@@ -160,15 +166,19 @@ function BookPageContent() {
 		setTime(nextTime);
 		if (!window.matchMedia("(max-width: 767px)").matches) return;
 		window.requestAnimationFrame(() => {
-			continueToDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-			continueToDetailsRef.current?.focus({ preventScroll: true });
+			const continueButton = continueToDetailsRef.current;
+			if (!continueButton) return;
+			const { bottom, top } = continueButton.getBoundingClientRect();
+			const isVisible = top >= 0 && bottom <= window.innerHeight;
+			if (!isVisible) continueButton.scrollIntoView({ behavior: "smooth", block: "center" });
+			continueButton.focus({ preventScroll: true });
 		});
 	}
 
-	if (complete) return <div className="min-h-[70vh] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-xl px-4 py-20"><div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"><h1 className="text-2xl font-semibold">Prenotazione confermata</h1><p className="mt-2 text-zinc-600">Ti aspettiamo {formatDate(date)} alle {time}.</p><Link href="/" className="mt-5 inline-block rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Torna alla home</Link></div></main></div>;
+	if (complete) return <div className="min-h-[calc(100dvh-var(--navbar-height))] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-xl px-4 py-20"><div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"><h1 className="text-2xl font-semibold">Prenotazione confermata</h1><p className="mt-2 text-zinc-600">Ti aspettiamo {formatDate(date)} alle {time}.</p><Link href="/" className="mt-5 inline-block rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Torna alla home</Link></div></main></div>;
 
-	return <div className="min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-100"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16">
-		{loading ? <p className="text-sm text-zinc-300">Caricamento disponibilità...</p> : <form ref={bookingFormRef} noValidate onSubmit={submit} className="scroll-mt-[calc(var(--navbar-height)+1rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-7">
+	return <div className="min-h-[calc(100dvh-var(--navbar-height))] overflow-x-hidden bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16">
+		{loading ? <LoadingIndicator className="min-h-64" label="Caricamento disponibilità..." /> : <form ref={bookingFormRef} noValidate onSubmit={submit} className="scroll-mt-[calc(var(--navbar-height)+1rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-7">
 			<div className="mb-6 grid grid-cols-3 gap-1.5 sm:mb-7 sm:gap-2" aria-label="Avanzamento prenotazione">
 				{([1, 2, 3] as const).map((item) => <div key={item} className={`rounded-lg px-1.5 py-2 text-center text-[11px] font-semibold sm:px-2 sm:text-xs ${step === item ? "bg-zinc-900 text-white" : step > item ? "bg-zinc-200 text-zinc-800" : "bg-zinc-100 text-zinc-500"}`}>{item}. {item === 1 ? "Dettagli" : item === 2 ? "Orario" : "Contatti"}</div>)}
 			</div>
@@ -178,15 +188,15 @@ function BookPageContent() {
 				<Field label="Giorno"><div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-7">{dates.map((item) => { const closed = isClosedDay(item, openingHours, closures); return <button key={item} type="button" disabled={closed} aria-pressed={date === item} aria-label={closed ? `${formatDate(item)}, chiuso` : formatDate(item)} onClick={() => setDate(item)} className={`min-h-12 min-w-24 shrink-0 snap-start rounded-xl border px-3 py-2 text-xs font-semibold capitalize sm:min-w-0 sm:px-2 ${date === item ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${closed ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{formatDate(item)}{closed ? <span className="mt-0.5 block text-[10px] normal-case">Chiuso</span> : null}</button>; })}</div></Field>
 				<button type="button" onClick={goToTimes} className="min-h-12 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button>
 			</div> : null}
-			{step === 2 ? <div className="grid gap-6"><Field label="Orario"><div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">{slots.map((item) => <button key={item.time} type="button" disabled={item.disabled} aria-pressed={time === item.time} onClick={() => selectTime(item.time)} className={`min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold ${time === item.time ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${item.disabled ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{item.time}</button>)}</div>{slots.length === 0 && <p className="text-sm text-zinc-600">Nessun orario disponibile in questo giorno.</p>}</Field><div className="flex gap-3"><button type="button" onClick={() => changeStep(1)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button ref={continueToDetailsRef} type="button" onClick={goToDetails} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button></div></div> : null}
+			{step === 2 ? <div className="grid gap-6"><Field label="Orario">{slotsLoading ? <LoadingIndicator className="min-h-32 rounded-xl border border-zinc-200 bg-zinc-50" label="Caricamento orari disponibili..." /> : <><div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">{slots.map((item) => <button key={item.time} type="button" disabled={item.disabled} aria-pressed={time === item.time} onClick={() => selectTime(item.time)} className={`min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold ${time === item.time ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${item.disabled ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{item.time}</button>)}</div>{slots.length === 0 && <p className="text-sm text-zinc-600">Nessun orario disponibile in questo giorno.</p>}</>}</Field><div className="flex gap-3"><button type="button" onClick={() => changeStep(1)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button ref={continueToDetailsRef} type="button" onClick={goToDetails} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button></div></div> : null}
 			{step === 3 ? <div className="grid gap-6"><div className="grid gap-4 sm:grid-cols-2"><Field label="Nome e cognome"><input value={name} aria-invalid={nameError} onChange={(event) => setName(event.target.value)} className={`input ${nameError ? "input-error" : ""}`} /></Field><Field label="Telefono"><input value={phone} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div><p className="text-xs leading-relaxed text-zinc-500">Inserisci telefono o email per completare la prenotazione.</p><div className="flex gap-3"><button type="button" onClick={() => changeStep(2)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button disabled={saving} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma"}</button></div></div> : null}
 		</form>}
-		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #d4d4d8; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#18181b; background:#fff; } .input-error { border-color:#ef4444; background:#fef2f2; }`}</style>
+		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #DED9D2; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#242827; background:#FFFEFC; } .input-error { border-color:#587983; background:color-mix(in srgb, #587983 10%, #F7F3ED); }`}</style>
 	</main></div>;
 }
 
 function BookingPageFallback() {
-	return <div className="min-h-screen bg-zinc-950 text-zinc-100"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16"><p className="mt-8 text-sm text-zinc-300">Caricamento disponibilità...</p></main></div>;
+	return <div className="min-h-[calc(100dvh-var(--navbar-height))] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16"><LoadingIndicator className="min-h-64" label="Caricamento disponibilità..." /></main></div>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) { return <div className="min-w-0"><label className="mb-2 block text-sm font-semibold text-zinc-800">{label}</label>{children}</div>; }

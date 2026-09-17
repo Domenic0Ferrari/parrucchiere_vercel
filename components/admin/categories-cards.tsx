@@ -134,7 +134,7 @@ export function CategoriesCards({ categories }: { categories: CategoryItem[] }) 
 								<div className="mt-2 inline-flex items-center gap-2 text-xs text-zinc-600">
 									<span
 										className="h-4 w-4 rounded-full border border-zinc-300"
-										style={{ backgroundColor: isHexColor(category.color) ? category.color : "#18181b" }}
+										style={{ backgroundColor: isHexColor(category.color) ? category.color : "#6F929C" }}
 										aria-label="Colore categoria"
 									/>
 									Colore

@@ -3,7 +3,7 @@ import Image from "next/image";
 
 export default function Home() {
 	return (
-		<div className="home-viewport bg-black font-sans text-white">
+		<div className="home-viewport bg-brand font-sans text-white">
 			<div className="relative h-full w-full overflow-hidden">
 				<Image
 					src="/capelli_home.jpg"
@@ -12,8 +12,6 @@ export default function Home() {
 					priority
 					className="absolute inset-0 h-full w-full object-cover"
 				/>
-				<div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/20" />
-
 				<main
 					id="home"
 					className="relative z-10 flex h-full items-center px-4 sm:px-8"
@@ -34,13 +32,13 @@ export default function Home() {
 						<div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:gap-3">
 							<a
 								href="/service"
-								className="inline-flex w-fit items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-zinc-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-white/40 sm:px-6 sm:py-3"
+								className="inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-zinc-900 shadow-lg shadow-brand/20 transition hover:-translate-y-0.5 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-white/40 sm:w-48 sm:px-6 sm:py-3"
 							>
-								Prenota un servizio
+								Prenota
 							</a>
 							<a
 								href="/aboutUs#contattaci"
-								className="inline-flex w-fit items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-medium text-white backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-6 sm:py-3"
+								className="inline-flex w-full items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-medium text-white backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 sm:w-48 sm:px-6 sm:py-3"
 							>
 								Contattaci
 							</a>

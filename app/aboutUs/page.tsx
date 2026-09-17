@@ -14,8 +14,6 @@ export default function ChiSiamoPage() {
 					sizes="100vw"
 					className="absolute inset-0 h-full w-full object-cover"
 				/>
-				<div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/50 to-black/25" />
-
 				<div className="relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end px-4 pb-10 sm:px-6">
 					<p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-300">
 						CHI SIAMO

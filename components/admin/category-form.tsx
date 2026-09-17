@@ -45,7 +45,7 @@ export function CategoryForm({ category }: CategoryFormProps) {
 	const [displayOrder, setDisplayOrder] = useState(
 		category ? String(category.displayOrder) : ""
 	);
-	const [color, setColor] = useState(category?.color ?? "#18181b");
+	const [color, setColor] = useState(category?.color ?? "#6F929C");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isReactivating, setIsReactivating] = useState(false);
 	const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -54,11 +54,11 @@ export function CategoryForm({ category }: CategoryFormProps) {
 		if (category) {
 			setName(category.name);
 			setDisplayOrder(String(category.displayOrder));
-			setColor(category.color ?? "#18181b");
+			setColor(category.color ?? "#6F929C");
 		} else {
 			setName("");
 			setDisplayOrder("");
-			setColor("#18181b");
+			setColor("#6F929C");
 		}
 	}, [category]);
 

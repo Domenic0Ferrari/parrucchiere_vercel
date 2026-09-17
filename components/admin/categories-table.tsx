@@ -245,7 +245,7 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 								<span className="inline-flex items-center">
 									<span
 										className="h-5 w-5 rounded-full border border-zinc-300"
-										style={{ backgroundColor: isHexColor(category.color) ? category.color : "#18181b" }}
+										style={{ backgroundColor: isHexColor(category.color) ? category.color : "#6F929C" }}
 										aria-label="Colore categoria"
 									/>
 								</span>

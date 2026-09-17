@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingIndicator } from "@/components/ui/loading-indicator";
 import { Switch } from "@/components/ui/switch";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { cn } from "@/lib/utils";
@@ -512,7 +513,7 @@ export function SalonManagementPage() {
 				<PageHeader />
 				<Card>
 					<CardContent className="flex min-h-64 items-center justify-center pt-6">
-						<p className="text-sm text-zinc-600">Caricamento dati salone...</p>
+						<LoadingIndicator label="Caricamento dati salone..." />
 					</CardContent>
 				</Card>
 			</section>

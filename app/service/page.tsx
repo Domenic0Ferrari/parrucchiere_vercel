@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { LoadingIndicator } from "@/components/ui/loading-indicator";
 
 type Service = {
 	id: string;
@@ -59,8 +60,6 @@ export default function ServiziPage() {
 					sizes="100vw"
 					className="absolute inset-0 h-full w-full object-cover object-center"
 				/>
-				<div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/20" />
-
 				<div
 					id="home"
 					className="relative z-10 mx-auto flex h-full max-w-5xl flex-col justify-center px-4 py-8 sm:px-6"
@@ -105,7 +104,7 @@ export default function ServiziPage() {
 					</div>
 
 					<div className="mt-6 grid gap-5 md:grid-cols-3">
-						{loading ? <p className="text-sm text-zinc-600">Caricamento servizi...</p> : null}
+						{loading ? <LoadingIndicator className="min-h-40 md:col-span-3" label="Caricamento servizi..." /> : null}
 						{error ? <p className="text-sm text-red-600">{error}</p> : null}
 						{!loading && !error && filteredServices.length === 0 ? <p className="text-sm text-zinc-600">Nessun servizio disponibile.</p> : null}
 						{filteredServices.map((service) => (
@@ -172,7 +171,7 @@ function ServiceCard(props: {
 								<span
 									key={category.id}
 									className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-									style={{ backgroundColor: isHexColor(category.color) ? category.color : "#18181b" }}
+									style={{ backgroundColor: isHexColor(category.color) ? category.color : "#6F929C" }}
 								>
 									{category.name}
 								</span>

@@ -1,6 +1,9 @@
 -- Esegui una sola volta nel SQL Editor di Supabase.
 alter table public.categories
-  add column if not exists color text not null default '#18181b';
+  add column if not exists color text not null default '#6F929C';
+
+alter table public.categories
+  alter column color set default '#6F929C';
 
 -- Colore esadecimale CSS nel formato #RRGGBB.
 alter table public.categories

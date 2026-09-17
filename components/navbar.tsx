@@ -113,7 +113,7 @@ export default function Navbar() {
 				</nav>
 				{isAdminRoute ? null : (
 					<div
-						className={`absolute left-0 right-0 top-full z-50 border-b border-white/10 bg-gradient-to-b from-black/85 to-zinc-900/85 px-4 pb-4 pt-2 shadow-md backdrop-blur-xl transition duration-200 md:hidden sm:px-6 ${menuOpen
+						className={`absolute left-0 right-0 top-full z-50 border-b border-white/10 bg-gradient-to-b from-brand/95 to-brand-hover/90 px-4 pb-4 pt-2 shadow-md backdrop-blur-xl transition duration-200 md:hidden sm:px-6 ${menuOpen
 							? "translate-y-0 opacity-100"
 							: "pointer-events-none -translate-y-2 opacity-0"
 							}`}

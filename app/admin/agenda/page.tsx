@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { LoadingIndicator } from "@/components/ui/loading-indicator";
 import {
 	Select,
 	SelectContent,
@@ -1283,7 +1284,7 @@ export default function AdminAgendaPage() {
 				<div
 					className={cn(
 						calendarView === ViewType.DAY ? "h-auto md:h-[600px]" : "h-[600px]",
-						"lg:h-full"
+						"relative lg:h-full"
 					)}
 					onContextMenuCapture={(event) => {
 						event.preventDefault();
@@ -1316,6 +1317,11 @@ export default function AdminAgendaPage() {
 					}}
 				>
 					<DayFlowCalendar key={calendarEventsKey} calendar={calendar} />
+					{loading || appointmentsLoading ? (
+						<div className="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-[1px]">
+							<LoadingIndicator label={loading ? "Caricamento agenda..." : "Aggiornamento appuntamenti..."} />
+						</div>
+					) : null}
 				</div>
 			</div>
 
@@ -1694,15 +1700,15 @@ export default function AdminAgendaPage() {
 				}
 
 				.agenda-calendar--day .df-right-panel {
-					background: #fafafa;
-					border-left: 1px solid #e4e4e7;
+					background: #F7F3ED;
+					border-left: 1px solid #DED9D2;
 					display: block !important;
 					width: 32%;
 				}
 
 				.agenda-calendar--day .df-mini-calendar {
-					background: #ffffff;
-					border-bottom: 1px solid #e4e4e7;
+					background: #FFFEFC;
+					border-bottom: 1px solid #DED9D2;
 				}
 
 				.agenda-calendar--day .df-right-panel-events-inner {
@@ -1710,15 +1716,15 @@ export default function AdminAgendaPage() {
 				}
 
 				.agenda-calendar--day .df-right-panel-date-heading {
-					background: #fafafa;
-					color: #18181b;
+					background: #F7F3ED;
+					color: #242827;
 					text-transform: capitalize;
 				}
 
 				.agenda-calendar--day .df-right-panel-event-card {
-					border: 1px solid rgba(99, 102, 241, 0.24);
+					border: 1px solid color-mix(in srgb, #6F929C 24%, transparent);
 					border-radius: 0.65rem;
-					box-shadow: 0 2px 5px rgba(49, 46, 129, 0.08);
+					box-shadow: 0 2px 5px color-mix(in srgb, #6F929C 8%, transparent);
 					overflow: hidden;
 				}
 
@@ -1754,7 +1760,7 @@ export default function AdminAgendaPage() {
 
 					.agenda-calendar--day .df-right-panel {
 						border-left: 0;
-						border-top: 1px solid #e4e4e7;
+						border-top: 1px solid #DED9D2;
 						height: auto;
 						width: 100%;
 					}
