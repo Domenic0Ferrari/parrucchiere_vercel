@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import { LoadingIndicator } from "@/components/ui/loading-indicator";
 
 type Service = {
 	id: string;
@@ -12,9 +12,10 @@ type Service = {
 	duration: number | null;
 	categoryIds?: string[];
 	categories?: string[];
+	categoryDetails?: Category[];
 };
 
-type Category = { id: string; name: string };
+type Category = { id: string; name: string; color?: string | null };
 
 export default function ServiziPage() {
 	const [selectedCategory, setSelectedCategory] = useState("tutti");
@@ -47,45 +48,20 @@ export default function ServiziPage() {
 	), [selectedCategory, services]);
 
 	return (
-		<div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
-			<div className="relative h-[180px] w-full overflow-hidden sm:h-[210px] lg:h-[240px]">
-				<Image
-					src="/capelli_servizi.jpg"
-					alt="capelli_servizi"
-					fill
-					priority
-					quality={100}
-					sizes="100vw"
-					className="absolute inset-0 h-full w-full object-cover object-center"
-				/>
-				<div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/20" />
-
-				<div
-					id="home"
-					className="relative z-10 mx-auto flex h-full max-w-5xl flex-col justify-center px-4 py-8 sm:px-6"
-				>
-					<p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-300">
-						I NOSTRI SERVIZI
-					</p>
-					<h1 className="max-w-xl text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl text-zinc-300">
-						Servizi pensati per valorizzare il tuo stile
-					</h1>
-					<p className="mt-3 max-w-xl text-sm leading-relaxed text-zinc-200 sm:text-base">
-						Tagli, colore e styling su misura. Scegli il trattamento e prenota
-						in pochi clic.
-					</p>
-				</div>
-			</div>
-
-			<main className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
+		<div className="min-h-[calc(100dvh-var(--navbar-height))] bg-zinc-50 font-sans text-zinc-900">
+			<main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 md:py-8">
 				<section id="servizi" className="scroll-mt-24">
-					<h2 className="text-xl font-semibold text-zinc-900 sm:text-2xl">
-						Servizi
-					</h2>
-					<p className="mt-1 max-w-2xl text-sm text-zinc-600">
-						Prezzi indicativi. La durata puo variare in base a lunghezza e
-						consulenza.
-					</p>
+					<header className="max-w-2xl">
+						<p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+							I nostri servizi
+						</p>
+						<h1 className="mt-2 text-balance text-3xl font-semibold leading-tight tracking-tight text-zinc-900 sm:text-4xl">
+							Servizi pensati per valorizzare il tuo stile
+						</h1>
+						<p className="mt-3 text-sm leading-relaxed text-zinc-600 sm:text-base">
+							Tagli, colore e styling su misura. Prezzi indicativi: la durata può variare in base a lunghezza e consulenza.
+						</p>
+					</header>
 
 					<div className="mt-4 flex flex-wrap gap-2">
 						<FilterButton
@@ -104,7 +80,7 @@ export default function ServiziPage() {
 					</div>
 
 					<div className="mt-6 grid gap-5 md:grid-cols-3">
-						{loading ? <p className="text-sm text-zinc-600">Caricamento servizi...</p> : null}
+						{loading ? <LoadingIndicator className="min-h-40 md:col-span-3" label="Caricamento servizi..." /> : null}
 						{error ? <p className="text-sm text-red-600">{error}</p> : null}
 						{!loading && !error && filteredServices.length === 0 ? <p className="text-sm text-zinc-600">Nessun servizio disponibile.</p> : null}
 						{filteredServices.map((service) => (
@@ -114,6 +90,7 @@ export default function ServiziPage() {
 								description={service.description}
 								price={service.price}
 								duration={service.duration}
+								categories={service.categoryDetails ?? []}
 							/>
 						))}
 					</div>
@@ -147,6 +124,7 @@ function ServiceCard(props: {
 	description: string | null;
 	price: number | null;
 	duration: number | null;
+	categories: Category[];
 }) {
 	const handleStartBooking = () => {
 		if (typeof window === "undefined") return;
@@ -161,25 +139,43 @@ function ServiceCard(props: {
 	return (
 		<article className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
 			<div className="space-y-2">
-				<h3 className="text-sm font-semibold text-zinc-900">{props.title}</h3>
+				<div className="flex min-h-5 justify-between gap-2">
+					<h3 className="text-sm font-semibold text-zinc-900">{props.title}</h3>
+					{props.categories.length > 0 ? (
+						<div className="flex flex-wrap justify-end gap-1">
+							{props.categories.map((category) => (
+								<span
+									key={category.id}
+									className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+									style={{ backgroundColor: isHexColor(category.color) ? category.color : "#6F929C" }}
+								>
+									{category.name}
+								</span>
+							))}
+						</div>
+					) : null}
+				</div>
 				<p className="text-xs leading-relaxed text-zinc-600">
 					{props.description || "Dettagli disponibili in salone."}
 				</p>
-				<p className="text-xs font-medium text-zinc-800">
-					{props.price !== null ? `EUR ${props.price.toFixed(2)}` : "Prezzo su richiesta"}
-					{props.duration !== null ? ` - ${props.duration} min` : ""}
-				</p>
+				{props.duration !== null ? <p className="text-xs text-zinc-500">Durata: {props.duration} min</p> : null}
 			</div>
-			<Link
-				href={{
-					pathname: "/book",
-					query: { servizio: props.title },
-				}}
-				onClick={handleStartBooking}
-				className="mt-4 inline-flex w-fit items-center justify-center rounded-full bg-zinc-900 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-zinc-800"
-			>
-				Prenota
-			</Link>
+			<div className="mt-4 grid grid-cols-4 gap-2">
+				<Link
+					href={{ pathname: "/book", query: { servizio: props.title } }}
+					onClick={handleStartBooking}
+					className="col-span-3 inline-flex items-center justify-center rounded-full bg-zinc-900 px-3 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-zinc-800"
+				>
+					Prenota
+				</Link>
+				<div className="inline-flex items-center justify-center rounded-full bg-zinc-100 px-2 py-2 text-center text-[11px] font-semibold text-zinc-800">
+					{props.price !== null ? `€ ${props.price.toFixed(2)}` : "Su richiesta"}
+				</div>
+			</div>
 		</article>
 	);
+}
+
+function isHexColor(value: string | null | undefined): value is string {
+	return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 }

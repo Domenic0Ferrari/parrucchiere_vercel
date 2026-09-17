@@ -45,7 +45,7 @@ export default function AdminSidebar({
 
 	return (
 		<aside className="flex h-full w-full flex-col overflow-hidden bg-white">
-			<div className="border-b border-zinc-200 px-4 py-4">
+			{/* <div className="border-b border-zinc-200 px-4 py-4">
 				<div
 					className={cn(
 						"flex items-center",
@@ -73,7 +73,7 @@ export default function AdminSidebar({
 						</Button>
 					) : null}
 				</div>
-			</div>
+			</div> */}
 
 			<nav className="flex-1 space-y-1 overflow-y-auto p-4">
 				{visibleMenuItems.map((item) => {

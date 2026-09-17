@@ -68,20 +68,20 @@ export async function GET(request: NextRequest) {
 		const [services, employees, categories, categoryLinks, rules] = await Promise.all([
 			supabase.from("services").select("id, name, description, duration, price").eq("is_active", true).order("name"),
 			supabase.from("employees").select("id, name").eq("is_active", true).order("name"),
-			supabase.from("categories").select("id, name").eq("is_active", true).order("name"),
-			supabase.from("categories2services").select("service_id, categories_id, categories(name, is_active)"),
+			supabase.from("categories").select("id, name, color").eq("is_active", true).order("name"),
+			supabase.from("categories2services").select("service_id, categories_id, categories(name, color, is_active)"),
 			salonRules(supabase),
 		]);
 		if (services.error) throw services.error;
 		if (employees.error) throw employees.error;
 		if (categories.error) throw categories.error;
-		const categoriesByService = new Map<string, string[]>();
+		const categoriesByService = new Map<string, Array<{ id: string; name: string; color: string | null }>>();
 		const categoryIdsByService = new Map<string, string[]>();
-		for (const row of (categoryLinks.data ?? []) as Array<{ service_id: string | number; categories_id: string | number; categories: { name?: string; is_active?: boolean } | null }>) {
+		for (const row of (categoryLinks.data ?? []) as Array<{ service_id: string | number; categories_id: string | number; categories: { name?: string; color?: string | null; is_active?: boolean } | null }>) {
 			if (!row.categories?.name || row.categories.is_active === false) continue;
 			const serviceId = String(row.service_id);
 			const categories = categoriesByService.get(serviceId) ?? [];
-			categories.push(row.categories.name);
+			categories.push({ id: String(row.categories_id), name: row.categories.name, color: row.categories.color ?? null });
 			categoriesByService.set(serviceId, categories);
 			const categoryIds = categoryIdsByService.get(serviceId) ?? [];
 			categoryIds.push(String(row.categories_id));
@@ -90,7 +90,8 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({
 			services: (services.data ?? []).map((service) => ({
 				...service,
-				categories: categoriesByService.get(String(service.id)) ?? [],
+				categories: (categoriesByService.get(String(service.id)) ?? []).map((category) => category.name),
+				categoryDetails: categoriesByService.get(String(service.id)) ?? [],
 				categoryIds: categoryIdsByService.get(String(service.id)) ?? [],
 			})),
 			employees: employees.data ?? [],

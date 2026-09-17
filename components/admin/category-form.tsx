@@ -20,6 +20,7 @@ type CategoryData = {
 	name: string;
 	displayOrder: number;
 	isActive: boolean;
+	color: string | null;
 };
 
 type CategoryFormProps = {
@@ -44,6 +45,7 @@ export function CategoryForm({ category }: CategoryFormProps) {
 	const [displayOrder, setDisplayOrder] = useState(
 		category ? String(category.displayOrder) : ""
 	);
+	const [color, setColor] = useState(category?.color ?? "#6F929C");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isReactivating, setIsReactivating] = useState(false);
 	const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -52,9 +54,11 @@ export function CategoryForm({ category }: CategoryFormProps) {
 		if (category) {
 			setName(category.name);
 			setDisplayOrder(String(category.displayOrder));
+			setColor(category.color ?? "#6F929C");
 		} else {
 			setName("");
 			setDisplayOrder("");
+			setColor("#6F929C");
 		}
 	}, [category]);
 
@@ -176,6 +180,7 @@ export function CategoryForm({ category }: CategoryFormProps) {
 					.update({
 						name: validated.normalizedName,
 						display_order: validated.displayOrderNumber,
+						color,
 					})
 					.eq("id", category.id);
 
@@ -188,6 +193,7 @@ export function CategoryForm({ category }: CategoryFormProps) {
 				const { error } = await supabase.from("categories").insert({
 					name: validated.normalizedName,
 					display_order: validated.displayOrderNumber,
+					color,
 					is_active: true,
 				});
 
@@ -233,6 +239,7 @@ export function CategoryForm({ category }: CategoryFormProps) {
 				.update({
 					name: validated.normalizedName,
 					display_order: validated.displayOrderNumber,
+					color,
 					is_active: true,
 				})
 				.eq("id", category.id);
@@ -280,6 +287,24 @@ export function CategoryForm({ category }: CategoryFormProps) {
 				) : null}
 
 				<form className="space-y-4" onSubmit={handleSubmit}>
+					<div>
+						<label className="mb-1.5 block text-sm font-semibold text-zinc-900" htmlFor="category-color">
+							Colore
+						</label>
+						<div className="flex items-center gap-3">
+							<input
+								id="category-color"
+								name="color"
+								type="color"
+								value={color}
+								onChange={(event) => setColor(event.target.value)}
+								className="h-11 w-14 cursor-pointer rounded-lg border border-zinc-300 bg-white p-1"
+							/>
+							<span className="text-sm text-zinc-600">{color.toUpperCase()}</span>
+						</div>
+						<p className="mt-1 text-xs text-zinc-500">Usato per la pill della categoria nelle card dei servizi.</p>
+					</div>
+
 					<div>
 						<label
 							className="mb-1.5 block text-sm font-semibold text-zinc-900"

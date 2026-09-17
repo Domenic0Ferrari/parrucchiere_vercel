@@ -1,29 +1,130 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #F7F3ED;
+  --foreground: #242827;
   --navbar-height: 64px;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: #6F929C;
+  --color-brand-hover: #587983;
+  --color-brand-soft: #DDE8EA;
+  --color-secondary: #EFE7DD;
+  --color-canvas: #F7F3ED;
+  --color-surface: #FFFEFC;
+  --color-ui-border: #DED9D2;
+  --color-content: #242827;
+  --color-muted: #6F716E;
+  --color-success: #6F929C;
+  --color-warning: #6F929C;
+  --color-danger: #587983;
+
+  /* Compatibilità con le utility già presenti nel portale. */
+  --color-zinc-50: #F7F3ED;
+  --color-zinc-100: #EFE7DD;
+  --color-zinc-200: #DED9D2;
+  --color-zinc-300: #DDE8EA;
+  --color-zinc-400: #DDE8EA;
+  --color-zinc-500: #6F716E;
+  --color-zinc-600: #6F716E;
+  --color-zinc-700: #242827;
+  --color-zinc-800: #242827;
+  --color-zinc-900: #242827;
+  --color-zinc-950: #242827;
+  --color-emerald-50: color-mix(in srgb, #6F929C 12%, #F7F3ED);
+  --color-emerald-600: #6F929C;
+  --color-emerald-700: #6F929C;
+  --color-emerald-800: #587983;
+  --color-amber-50: color-mix(in srgb, #6F929C 12%, #F7F3ED);
+  --color-amber-200: color-mix(in srgb, #6F929C 35%, #F7F3ED);
+  --color-amber-700: #6F929C;
+  --color-amber-800: #587983;
+  --color-amber-900: #587983;
+  --color-red-50: color-mix(in srgb, #587983 10%, #F7F3ED);
+  --color-red-300: color-mix(in srgb, #587983 45%, #F7F3ED);
+  --color-red-500: #587983;
+  --color-red-600: #587983;
+  --color-red-700: #587983;
+  --color-red-800: #587983;
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: Menlo, Monaco, Consolas, "Courier New", monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Le azioni principali restano petrolio, anche dove il testo usa antracite. */
+.bg-zinc-900,
+.data-\[state\=checked\]\:bg-zinc-900[data-state="checked"] {
+  background-color: var(--color-brand);
+}
+
+.bg-zinc-800,
+.bg-zinc-700,
+.hover\:bg-zinc-900:hover,
+.hover\:bg-zinc-800:hover {
+  background-color: var(--color-brand-hover);
+}
+
+.border-zinc-900,
+.focus\:border-zinc-900:focus,
+.focus-visible\:border-zinc-900:focus-visible {
+  border-color: var(--color-brand);
+}
+
+.focus\:ring-zinc-200:focus,
+.focus-visible\:ring-zinc-400:focus-visible,
+.focus-visible\:ring-zinc-300:focus-visible {
+  --tw-ring-color: color-mix(in srgb, var(--color-brand) 35%, transparent);
+}
+
+.bg-zinc-950\/45 {
+  background-color: color-mix(in srgb, var(--color-brand) 45%, transparent);
+}
+
+@keyframes mobile-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-menu-enter {
+  animation: mobile-menu-enter 260ms ease-out both;
+}
+
+.mobile-menu-link {
+  animation: mobile-menu-enter 320ms ease-out both;
+}
+
+/* Safari può espandere i controlli nativi per l'orario oltre la loro colonna. */
+@media (max-width: 767px) {
+  .salon-time-input {
+    max-width: calc(100vw - 6.5rem) !important;
+  }
+}
+
+/* Mantiene un feedback coerente per mouse/trackpad senza alterare i controlli disabilitati. */
+button:not(:disabled),
+a[href],
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer !important;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed !important;
 }
 
 /* Safari ingrandisce automaticamente la pagina quando un campo attivo ha un font inferiore a 16px. */

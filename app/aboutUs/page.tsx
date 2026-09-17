@@ -14,8 +14,6 @@ export default function ChiSiamoPage() {
 					sizes="100vw"
 					className="absolute inset-0 h-full w-full object-cover"
 				/>
-				<div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/50 to-black/25" />
-
 				<div className="relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end px-4 pb-10 sm:px-6">
 					<p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-300">
 						CHI SIAMO
@@ -79,36 +77,6 @@ export default function ChiSiamoPage() {
 					</div>
 				</section>
 
-				<section id="contattaci" className="mt-8 scroll-mt-24">
-					<div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-						<h2 className="text-xl font-semibold text-zinc-900 sm:text-2xl">
-							Contattaci
-						</h2>
-						<p className="mt-1 text-sm text-zinc-600">
-							Per info su disponibilita, prezzi e promozioni, scrivici o chiamaci.
-						</p>
-						<div className="mt-5 grid gap-4 sm:grid-cols-3">
-							<div className="rounded-xl bg-zinc-50 p-4">
-								<div className="text-xs font-medium text-zinc-500">Telefono</div>
-								<div className="mt-1 text-sm font-semibold text-zinc-900">
-									+39 000 000 0000
-								</div>
-							</div>
-							<div className="rounded-xl bg-zinc-50 p-4">
-								<div className="text-xs font-medium text-zinc-500">Email</div>
-								<div className="mt-1 text-sm font-semibold text-zinc-900">
-									info@saleone.it
-								</div>
-							</div>
-							<div className="rounded-xl bg-zinc-50 p-4">
-								<div className="text-xs font-medium text-zinc-500">Indirizzo</div>
-								<div className="mt-1 text-sm font-semibold text-zinc-900">
-									Via Esempio 1, Citta
-								</div>
-							</div>
-						</div>
-					</div>
-				</section>
 			</main>
 		</div>
 	);

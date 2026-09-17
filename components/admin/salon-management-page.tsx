@@ -1,19 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarOff, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, CalendarOff, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingIndicator } from "@/components/ui/loading-indicator";
 import { Switch } from "@/components/ui/switch";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { cn } from "@/lib/utils";
 
 const ERROR_VISIBILITY_MS = 4000;
+
+export const salonManagementSections = ["details", "hours", "closures"] as const;
+export type SalonManagementSection = (typeof salonManagementSections)[number];
 
 const WEEK_DAYS = [
 	{ value: 1, label: "Lunedi" },
@@ -145,7 +150,7 @@ function getErrorMessage(error: unknown) {
 		: "Errore imprevisto.";
 }
 
-export function SalonManagementPage() {
+export function SalonManagementPage({ section }: { section: SalonManagementSection }) {
 	const [salon, setSalon] = useState<Salon>(emptySalon);
 	const [openingHours, setOpeningHours] = useState<OpeningHour[]>(defaultOpeningHours());
 	const [closures, setClosures] = useState<Closure[]>([]);
@@ -234,7 +239,8 @@ export function SalonManagementPage() {
 					address: data.address ? String(data.address) : "",
 				};
 				setSalon(loadedSalon);
-				await Promise.all([loadOpeningHours(loadedSalon.id), loadClosures(loadedSalon.id)]);
+				if (section === "hours") await loadOpeningHours(loadedSalon.id);
+				if (section === "closures") await loadClosures(loadedSalon.id);
 			} catch (error) {
 				toast.error(getErrorMessage(error), { duration: ERROR_VISIBILITY_MS });
 			} finally {
@@ -246,7 +252,7 @@ export function SalonManagementPage() {
 		return () => {
 			ignore = true;
 		};
-	}, [loadClosures, loadOpeningHours, supabase]);
+	}, [loadClosures, loadOpeningHours, section, supabase]);
 
 	function validateSalon(currentSalon: Salon) {
 		const nextErrors: FieldErrors = {};
@@ -509,10 +515,10 @@ export function SalonManagementPage() {
 	if (loading) {
 		return (
 			<section className="space-y-6">
-				<PageHeader />
+				<PageHeader section={section} />
 				<Card>
 					<CardContent className="flex min-h-64 items-center justify-center pt-6">
-						<p className="text-sm text-zinc-600">Caricamento dati salone...</p>
+						<LoadingIndicator label="Caricamento dati salone..." />
 					</CardContent>
 				</Card>
 			</section>
@@ -525,14 +531,10 @@ export function SalonManagementPage() {
 
 	return (
 		<section className="space-y-6">
-			<PageHeader />
+			<PageHeader section={section} />
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Dati salone</CardTitle>
-					<CardDescription>Modifica le informazioni pubbliche e di contatto.</CardDescription>
-				</CardHeader>
-				<CardContent>
+			{section === "details" ? <Card>
+				<CardContent className="p-4 sm:p-6">
 					<form className="space-y-4" onSubmit={handleSaveSalon}>
 						<div className="grid gap-4 md:grid-cols-2">
 							<Field id="salon-name" label="Nome salone" error={salonErrors.name}>
@@ -576,36 +578,17 @@ export function SalonManagementPage() {
 							</Field>
 						</div>
 						<div className="flex justify-end">
-							<Button type="submit" className="gap-2" disabled={savingSalon}>
+							<Button type="submit" className="w-full gap-2 sm:w-auto" disabled={savingSalon}>
 								<Save className="h-4 w-4" />
 								{savingSalon ? "Salvataggio..." : "Salva dati"}
 							</Button>
 						</div>
 					</form>
 				</CardContent>
-			</Card>
+			</Card> : null}
 
-			<Card>
-				<CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
-					<div>
-						<CardTitle>Orari di apertura</CardTitle>
-						<CardDescription>
-							{hasSalon
-								? "Configura le fasce settimanali del salone."
-								: "Crea e salva prima il salone per poter configurare gli orari."}
-						</CardDescription>
-					</div>
-					<Button
-						type="button"
-						className="gap-2"
-						disabled={!hasSalon || savingHours}
-						onClick={handleSaveOpeningHours}
-					>
-						<Save className="h-4 w-4" />
-						{savingHours ? "Salvataggio..." : "Salva orari"}
-					</Button>
-				</CardHeader>
-				<CardContent className="space-y-4">
+			{section === "hours" ? <Card>
+				<CardContent className="space-y-4 p-4 sm:p-6">
 					<div className="space-y-3">
 						{openingHours.map((hour) => {
 							const day = WEEK_DAYS.find((item) => item.value === hour.day_of_week);
@@ -614,7 +597,7 @@ export function SalonManagementPage() {
 							return (
 								<div
 									key={hour.day_of_week}
-									className="grid gap-4 rounded-lg border border-zinc-200 p-4 lg:grid-cols-[9rem_1fr_1fr]"
+									className="grid min-w-0 overflow-hidden gap-5 rounded-xl border border-zinc-200 p-3 sm:p-4 lg:grid-cols-[9rem_1fr_1fr]"
 								>
 									<div className="flex items-center justify-between gap-3 lg:block">
 										<p className="font-semibold text-zinc-900">{day?.label}</p>
@@ -672,20 +655,23 @@ export function SalonManagementPage() {
 							);
 						})}
 					</div>
+					<div className="flex justify-end pt-1">
+						<Button
+							type="button"
+							className="w-full gap-2 sm:w-auto"
+							disabled={!hasSalon || savingHours}
+							onClick={handleSaveOpeningHours}
+						>
+							<Save className="h-4 w-4" />
+							{savingHours ? "Salvataggio..." : "Salva orari"}
+						</Button>
+					</div>
 				</CardContent>
-			</Card>
+			</Card> : null}
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Chiusure extra</CardTitle>
-					<CardDescription>
-						{hasSalon
-							? "Registra ferie, festivita o chiusure parziali."
-							: "Crea e salva prima il salone per gestire le chiusure."}
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="grid gap-6 xl:grid-cols-[1fr_24rem]">
-					<div className="space-y-3">
+			{section === "closures" ? <Card>
+				<CardContent className="grid gap-6 p-4 sm:p-6 xl:grid-cols-[1fr_24rem]">
+					<div className="order-last space-y-3 xl:order-none">
 						{closures.length === 0 ? (
 							<div className="rounded-lg border border-dashed border-zinc-300 p-6 text-center">
 								<CalendarOff className="mx-auto h-7 w-7 text-zinc-400" />
@@ -742,13 +728,13 @@ export function SalonManagementPage() {
 						)}
 					</div>
 
-					<form className="space-y-4 rounded-lg border border-zinc-200 p-4" onSubmit={handleSaveClosure}>
+					<form className="order-first space-y-4 xl:order-none" onSubmit={handleSaveClosure}>
 						<div>
 							<h3 className="text-base font-semibold text-zinc-900">
 								{isEditingClosure ? "Modifica chiusura" : "Nuova chiusura"}
 							</h3>
 						</div>
-						<div className="grid gap-3 sm:grid-cols-2">
+						<div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 							<Field id="closure-start-date" label="Da" error={closureErrors.start_date}>
 								<Input
 									id="closure-start-date"
@@ -803,7 +789,7 @@ export function SalonManagementPage() {
 						</div>
 						<div
 							className={cn(
-								"grid gap-3 sm:grid-cols-2",
+								"grid grid-cols-1 gap-3 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
 								closureForm.all_day && "hidden"
 							)}
 						>
@@ -833,7 +819,7 @@ export function SalonManagementPage() {
 								/>
 							</Field>
 						</div>
-						<div className="flex gap-3">
+						<div className="flex flex-col-reverse gap-3 sm:flex-row">
 							{isEditingClosure ? (
 								<Button type="button" variant="outline" className="flex-1" onClick={cancelEditingClosure} disabled={savingClosure}>
 									Annulla
@@ -846,7 +832,7 @@ export function SalonManagementPage() {
 						</div>
 					</form>
 				</CardContent>
-			</Card>
+			</Card> : null}
 
 			<ConfirmDialog
 				open={deletingClosureId !== null}
@@ -909,13 +895,33 @@ function normalizeClosure(row: Record<string, unknown>): Closure {
 	};
 }
 
-function PageHeader() {
+function PageHeader({ section }: { section: SalonManagementSection }) {
+	const content = {
+		details: {
+			title: "Dati salone",
+			description: "Modifica le informazioni pubbliche e di contatto.",
+		},
+		hours: {
+			title: "Orari di apertura",
+			description: "Configura le fasce orarie settimanali del salone.",
+		},
+		closures: {
+			title: "Chiusure extra",
+			description: "Gestisci ferie, festività e chiusure parziali.",
+		},
+	}[section];
+
 	return (
-		<header>
-			<h1 className="text-2xl font-semibold text-zinc-900">Salone</h1>
-			<p className="mt-1 text-sm text-zinc-600">
-				Gestisci informazioni, orari settimanali e chiusure extra.
-			</p>
+		<header className="relative min-h-10 pr-12">
+			<Link
+				href="/admin/salon"
+				aria-label="Torna a Salone"
+				className="absolute right-0 top-0 inline-flex size-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-100 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand/35"
+			>
+				<ArrowLeft aria-hidden="true" className="size-5" />
+			</Link>
+			<h1 className="text-2xl font-semibold text-zinc-900">{content.title}</h1>
+			<p className="mt-1 text-sm text-zinc-600">{content.description}</p>
 		</header>
 	);
 }
@@ -932,7 +938,7 @@ function Field({
 	children: React.ReactNode;
 }) {
 	return (
-		<div className="space-y-1.5">
+		<div className="min-w-0 space-y-1.5">
 			<Label htmlFor={id}>{label}</Label>
 			{children}
 			{error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -960,13 +966,14 @@ function TimeRange({
 	onEndChange: (value: string) => void;
 }) {
 	return (
-		<div>
+		<div className="min-w-0">
 			<p className="mb-2 text-sm font-semibold text-zinc-900">{label}</p>
-			<div className="grid grid-cols-2 gap-3">
+			<div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 				<Field id={startId} label="Inizio">
 					<Input
 						id={startId}
 						type="time"
+						className="salon-time-input"
 						value={start}
 						disabled={disabled}
 						onChange={(event) => onStartChange(event.target.value)}
@@ -976,6 +983,7 @@ function TimeRange({
 					<Input
 						id={endId}
 						type="time"
+						className="salon-time-input"
 						value={end}
 						disabled={disabled}
 						onChange={(event) => onEndChange(event.target.value)}
