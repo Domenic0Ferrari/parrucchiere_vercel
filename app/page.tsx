@@ -6,8 +6,8 @@ export default function Home() {
 		<div className="home-viewport bg-brand font-sans text-white">
 			<div className="relative h-full w-full overflow-hidden">
 				<Image
-					src="/capelli_home.jpg"
-					alt="capelli_home"
+					src="/hero.jpg"
+					alt="Taglio maschile in salone"
 					fill
 					priority
 					className="absolute inset-0 h-full w-full object-cover"
@@ -37,7 +37,7 @@ export default function Home() {
 								Prenota
 							</a>
 							<a
-								href="/aboutUs#contattaci"
+								href="/contacts"
 								className="inline-flex w-full items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-medium text-white backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 sm:w-48 sm:px-6 sm:py-3"
 							>
 								Contattaci

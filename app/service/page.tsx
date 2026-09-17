@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { LoadingIndicator } from "@/components/ui/loading-indicator";
 
@@ -50,42 +49,19 @@ export default function ServiziPage() {
 
 	return (
 		<div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
-			<div className="relative h-[180px] w-full overflow-hidden sm:h-[210px] lg:h-[240px]">
-				<Image
-					src="/capelli_servizi.jpg"
-					alt="capelli_servizi"
-					fill
-					priority
-					quality={100}
-					sizes="100vw"
-					className="absolute inset-0 h-full w-full object-cover object-center"
-				/>
-				<div
-					id="home"
-					className="relative z-10 mx-auto flex h-full max-w-5xl flex-col justify-center px-4 py-8 sm:px-6"
-				>
-					<p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-300">
-						I NOSTRI SERVIZI
-					</p>
-					<h1 className="max-w-xl text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl text-zinc-300">
-						Servizi pensati per valorizzare il tuo stile
-					</h1>
-					<p className="mt-3 max-w-xl text-sm leading-relaxed text-zinc-200 sm:text-base">
-						Tagli, colore e styling su misura. Scegli il trattamento e prenota
-						in pochi clic.
-					</p>
-				</div>
-			</div>
-
-			<main className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
+			<main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
 				<section id="servizi" className="scroll-mt-24">
-					<h2 className="text-xl font-semibold text-zinc-900 sm:text-2xl">
-						Servizi
-					</h2>
-					<p className="mt-1 max-w-2xl text-sm text-zinc-600">
-						Prezzi indicativi. La durata puo variare in base a lunghezza e
-						consulenza.
-					</p>
+					<header className="max-w-2xl">
+						<p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+							I nostri servizi
+						</p>
+						<h1 className="mt-2 text-balance text-3xl font-semibold leading-tight tracking-tight text-zinc-900 sm:text-4xl">
+							Servizi pensati per valorizzare il tuo stile
+						</h1>
+						<p className="mt-3 text-sm leading-relaxed text-zinc-600 sm:text-base">
+							Tagli, colore e styling su misura. Prezzi indicativi: la durata può variare in base a lunghezza e consulenza.
+						</p>
+					</header>
 
 					<div className="mt-4 flex flex-wrap gap-2">
 						<FilterButton

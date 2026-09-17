@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -9,7 +10,7 @@ const navItems = [
 	{ href: "/", label: "Home" },
 	{ href: "/service", label: "Servizi" },
 	{ href: "/aboutUs", label: "Chi siamo" },
-	{ href: "/aboutUs#contattaci", label: "Contattaci" },
+	{ href: "/contacts", label: "Contattaci" },
 ];
 
 function getLinkClasses(pathname: string, href: string): string {
@@ -64,9 +65,16 @@ export default function Navbar() {
 				>
 					<Link
 						href={isAdminRoute ? "/admin/dashboard" : "/"}
-						className="font-semibold text-zinc-900"
+						className="flex items-center gap-2 font-semibold text-zinc-900"
 					>
-						{isAdminRoute ? "Admin Panel" : "Salone Online"}
+						<Image
+							src="/logo.png"
+							alt=""
+							width={36}
+							height={36}
+							className="size-9 object-contain"
+						/>
+						{/* <span>{isAdminRoute ? "Admin Panel" : "Salone Online"}</span> */}
 					</Link>
 					{isAdminRoute ? (
 						<button
