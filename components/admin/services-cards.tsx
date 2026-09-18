@@ -12,13 +12,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { ServiceCategoryItem, ServiceItem } from "./services-table";
 
 function CategoryBadge({ category }: { category: ServiceCategoryItem }) {
+	const color = /^#[0-9A-Fa-f]{6}$/.test(category.color ?? "")
+		? category.color ?? "#6F929C"
+		: "#6F929C";
+
 	return (
 		<span
-			className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-				category.isActive
-					? "bg-zinc-100 text-zinc-700"
-					: "bg-zinc-200 text-zinc-500"
+			className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ${
+				category.isActive ? "" : "opacity-50"
 			}`}
+			style={{ backgroundColor: color }}
 		>
 			{category.name}
 			{category.isActive ? null : " disattiva"}
@@ -132,7 +135,7 @@ export function ServicesCards({ services }: { services: ServiceItem[] }) {
 			{filteredServices.map((service) => (
 				<li
 					key={service.id}
-					className="rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700"
+					className="rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700"
 				>
 					<div className="flex items-start justify-between gap-2">
 						<div className="min-w-0 flex-1">
@@ -201,7 +204,7 @@ export function ServicesCards({ services }: { services: ServiceItem[] }) {
 					</div>
 				</li>
 			))}
-			{filteredServices.length === 0 ? <li className="rounded-lg border border-zinc-200 p-4 text-sm text-zinc-600">Nessun servizio corrisponde alla ricerca.</li> : null}
+			{filteredServices.length === 0 ? <li className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600">Nessun servizio corrisponde alla ricerca.</li> : null}
 		</ul>
 		</div>
 

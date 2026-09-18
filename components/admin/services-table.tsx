@@ -23,10 +23,12 @@ export type ServiceItem = {
 export type ServiceCategoryItem = {
 	name: string;
 	isActive: boolean;
+	color?: string | null;
 };
 
 type SortKey = "name" | "description" | "price" | "durationMinutes" | "categories";
 type SortDir = "asc" | "desc";
+const PAGE_SIZE = 20;
 
 function sortServices(
 	services: ServiceItem[],
@@ -69,13 +71,16 @@ function SortIcon({ dir }: { dir: SortDir | null }) {
 }
 
 function CategoryBadge({ category }: { category: ServiceCategoryItem }) {
+	const color = /^#[0-9A-Fa-f]{6}$/.test(category.color ?? "")
+		? category.color ?? "#6F929C"
+		: "#6F929C";
+
 	return (
 		<span
-			className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-				category.isActive
-					? "bg-zinc-100 text-zinc-700"
-					: "bg-zinc-200 text-zinc-500"
+			className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ${
+				category.isActive ? "" : "opacity-50"
 			}`}
+			style={{ backgroundColor: color }}
 		>
 			{category.name}
 			{category.isActive ? null : " disattiva"}
@@ -87,6 +92,7 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 	const router = useRouter();
 	const [sortKey, setSortKey] = useState<SortKey | null>(null);
 	const [sortDir, setSortDir] = useState<SortDir | null>(null);
+	const [page, setPage] = useState(1);
 	const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 	const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 	const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -98,6 +104,7 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 	const categories = [...new Set(services.flatMap((service) => service.categories.map((category) => category.name)))].sort((a, b) => a.localeCompare(b));
 
 	const handleSort = useCallback((key: SortKey) => {
+		setPage(1);
 		if (sortKey !== key) {
 			setSortKey(key);
 			setSortDir("asc");
@@ -122,12 +129,23 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 		return matchesSearch && matchesCategories;
 	});
 	const sorted = sortKey && sortDir ? sortServices(filtered, sortKey, sortDir) : filtered;
+	const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+	const currentPage = Math.min(page, totalPages);
+	const paginatedServices = sorted.slice(
+		(currentPage - 1) * PAGE_SIZE,
+		currentPage * PAGE_SIZE
+	);
 
 	const toggleCategory = (categoryName: string) => {
+		setPage(1);
 		setSelectedCategories((current) => current.includes(categoryName)
 			? current.filter((name) => name !== categoryName)
 			: [...current, categoryName]);
 	};
+
+	useEffect(() => {
+		setPage((current) => Math.min(current, totalPages));
+	}, [totalPages]);
 
 	useEffect(() => {
 		if (!categoryFilterOpen) return;
@@ -191,14 +209,14 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 	};
 
 	return (
-		<div className="hidden md:block rounded-lg border border-zinc-200 min-h-[400px]">
-			<div className="border-b border-zinc-200 bg-zinc-50 p-4">
+		<div className="hidden min-h-[400px] overflow-hidden rounded-lg border border-zinc-200 bg-white md:block">
+			<div className="border-b border-zinc-200 bg-white p-4">
 				<div className="flex flex-wrap items-end gap-3">
 				<div className="w-full max-w-sm">
 					<label htmlFor="services-search" className="mb-1.5 block text-sm font-semibold text-zinc-900">Cerca servizi</label>
 					<div className="relative">
-						<Input id="services-search" type="text" inputMode="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, descrizione o categoria" className="pr-10" />
-						{search ? <button type="button" onClick={() => setSearch("")} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-red-500 transition hover:text-red-700" aria-label="Cancella ricerca"><X className="h-4 w-4" /></button> : null}
+						<Input id="services-search" type="text" inputMode="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Nome, descrizione o categoria" className="pr-10" />
+						{search ? <button type="button" onClick={() => { setSearch(""); setPage(1); }} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-red-500 transition hover:text-red-700" aria-label="Cancella ricerca"><X className="h-4 w-4" /></button> : null}
 					</div>
 				</div>
 				{categories.length > 0 ? (
@@ -209,7 +227,7 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 							<div id="services-category-filter" className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg">
 								<div className="mb-2 flex items-center justify-between gap-2">
 									<p className="text-sm font-semibold text-zinc-900">Categorie</p>
-									{selectedCategories.length > 0 ? <button type="button" onClick={() => setSelectedCategories([])} className="text-xs font-medium text-red-600 hover:text-red-700">Pulisci</button> : null}
+									{selectedCategories.length > 0 ? <button type="button" onClick={() => { setSelectedCategories([]); setPage(1); }} className="text-xs font-medium text-red-600 hover:text-red-700">Pulisci</button> : null}
 								</div>
 								<div className="max-h-56 space-y-2 overflow-y-auto">
 									{categories.map((category) => (
@@ -228,7 +246,7 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 			<div className="overflow-x-auto">
 			<table className="w-full text-sm">
 				<thead>
-					<tr className="border-b border-zinc-200 bg-zinc-50 text-left">
+					<tr className="border-b border-zinc-200 bg-white text-left">
 						<th className="px-4 py-3">
 							<button
 								type="button"
@@ -283,7 +301,7 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 					</tr>
 				</thead>
 				<tbody>
-					{sorted.map((service) => (
+					{paginatedServices.map((service) => (
 						<tr
 							key={service.id}
 							onDoubleClick={() => handleRowDoubleClick(service.id)}
@@ -355,6 +373,21 @@ export function ServicesTable({ services }: { services: ServiceItem[] }) {
 				</tbody>
 			</table>
 			</div>
+			{sorted.length > PAGE_SIZE ? (
+				<div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-4 py-3">
+					<p className="text-sm text-zinc-600">
+						Pagina {currentPage} di {totalPages} · {sorted.length} servizi
+					</p>
+					<div className="flex items-center gap-2">
+						<Button type="button" variant="outline" size="sm" onClick={() => setPage((current) => current - 1)} disabled={currentPage === 1}>
+							Precedente
+						</Button>
+						<Button type="button" variant="outline" size="sm" onClick={() => setPage((current) => current + 1)} disabled={currentPage === totalPages}>
+							Successiva
+						</Button>
+					</div>
+				</div>
+			) : null}
 
 			{openMenuId && menuPosition && typeof document !== "undefined"
 				? createPortal(
