@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ServicesCards } from "@/components/admin/services-cards";
 import { ServicesTable } from "@/components/admin/services-table";
 import { createClient } from "@supabase/supabase-js";
@@ -19,6 +18,7 @@ export type ServiceItem = {
 export type ServiceCategoryItem = {
 	name: string;
 	isActive: boolean;
+	color: string | null;
 };
 
 const TABLE_NAME = "services";
@@ -79,6 +79,7 @@ function normalizeServiceCategory(row: RawService): {
 		category: {
 			name: String(categoryName),
 			isActive: isActiveValue === true || isActiveValue === "true" || isActiveValue === 1,
+			color: typeof categoryRow.color === "string" ? categoryRow.color : null,
 		},
 	};
 }
@@ -105,7 +106,7 @@ async function getServices() {
 
 	const { data: serviceCategoryData } = await supabase
 		.from("categories2services")
-		.select("service_id, categories(name, is_active)")
+		.select("service_id, categories(name, color, is_active)")
 		.order("name", { referencedTable: "categories", ascending: true });
 
 	const categoriesByServiceId = new Map<string, ServiceCategoryItem[]>();
@@ -134,8 +135,15 @@ export default async function AdminServicesPage() {
 	const { services, error } = await getServices();
 
 	return (
-		<section className="space-y-6">
-			<header className="flex flex-wrap items-center justify-between gap-3">
+		<section className="-mt-3 space-y-6 md:mt-0">
+			<header className="flex items-center justify-between gap-3 md:hidden">
+				<h1 className="text-xl font-semibold text-zinc-900">Lista servizi</h1>
+				<Link href="/admin/services/new">
+					<Button>Aggiungi</Button>
+				</Link>
+			</header>
+
+			<header className="hidden flex-wrap items-center justify-between gap-3 md:flex">
 				<div>
 					<h1 className="text-2xl font-semibold text-zinc-900">Servizi</h1>
 					<p className="mt-1 text-sm text-zinc-600">
@@ -143,27 +151,29 @@ export default async function AdminServicesPage() {
 					</p>
 				</div>
 				<Link href="/admin/services/new">
-					<Button>Aggiungi Servizio</Button>
+					<Button>Aggiungi</Button>
 				</Link>
 			</header>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Lista Servizi</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{error ? (
-						<p className="text-sm text-red-600">{error}</p>
-					) : services.length === 0 ? (
-						<p className="text-sm text-zinc-600">Nessun servizio disponibile.</p>
-					) : (
-						<>
-							<ServicesTable services={services} />
-							<ServicesCards services={services} />
-						</>
-					)}
-				</CardContent>
-			</Card>
+			<div className="md:hidden">
+				{error ? (
+					<p className="text-sm text-red-600">{error}</p>
+				) : services.length === 0 ? (
+					<p className="text-sm text-zinc-600">Nessun servizio disponibile.</p>
+				) : (
+					<ServicesCards services={services} />
+				)}
+			</div>
+
+			<div className="hidden md:block">
+				{error ? (
+					<p className="text-sm text-red-600">{error}</p>
+				) : services.length === 0 ? (
+					<p className="text-sm text-zinc-600">Nessun servizio disponibile.</p>
+				) : (
+					<ServicesTable services={services} />
+				)}
+			</div>
 		</section>
 	);
 }
