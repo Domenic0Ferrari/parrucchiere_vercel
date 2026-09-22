@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, LayoutDashboard, LogOut, Package, Store, Tags, Users, X } from "lucide-react";
+import { CalendarDays, LayoutDashboard, LogOut, Package, Star, Store, Tags, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { clearAdminSessionActivity } from "@/lib/admin-session-timeout";
@@ -32,7 +32,7 @@ export default function AdminSidebar({
 	const router = useRouter();
 	const { user } = useAuthSession();
 	const visibleMenuItems = user?.employee.role === "admin"
-		? [...menuItems, { href: "/admin/salon", label: "Salone", icon: Store }]
+		? [...menuItems, { href: "/admin/reviews", label: "Recensioni", icon: Star }, { href: "/admin/salon", label: "Salone", icon: Store }]
 		: menuItems;
 
 	const handleLogout = async () => {

@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Recensioni
+
+1. Configura `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` e nell'ambiente Vercel.
+2. Esegui `supabase/reviews.sql` nel SQL Editor del progetto Supabase **prima** di pubblicare le nuove pagine. Il file crea tabella, vincoli, indice, trigger, permessi e policy RLS; può essere rieseguito.
+3. Verifica che `public.employees` abbia le colonne `auth_user_id`, `is_active` e `role`, e che l'account moderatore abbia `role = 'admin'` e `is_active = true`.
+
+Il visitatore invia una recensione da `/reviews/new`. Il database la crea sempre con stato `pending`; il visitatore non può leggerla o modificarla dopo l'invio. Un admin la approva o la rifiuta in `/admin/reviews`. Solo le recensioni approvate appaiono nella home e in `/reviews`. Il trigger registra data e utente della moderazione. Le regole sono nel database: nascondere il link admin nell'interfaccia non sostituisce le policy RLS.
+
+Controllo consigliato dopo la migrazione: invia una recensione senza accesso, verifica che non appaia nella pagina pubblica, approvala con un account admin e verifica che appaia; prova anche il rifiuto e un accesso con dipendente non admin. L'invio pubblico può generare spam nella coda: se serve un limite ai tentativi, aggiungere un controllo server con CAPTCHA o rate limiting prima del lancio su larga scala.
+
 ## Getting Started
 
 First, run the development server:
