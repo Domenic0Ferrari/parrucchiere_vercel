@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoriesCards } from "@/components/admin/categories-cards";
 import { CategoriesPageHeader } from "@/components/admin/categories-page-header";
 import { CategoriesTable } from "@/components/admin/categories-table";
@@ -74,26 +73,14 @@ export default async function AdminCategoriesPage() {
 	const { categories, error } = await getCategories();
 
 	return (
-		<section className="space-y-6">
+		<section className="-mt-3 space-y-6 md:mt-0">
 			<CategoriesPageHeader />
-
-			<Card>
-				<CardHeader>
-					<CardTitle>Lista Categorie</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{error ? (
-						<p className="text-sm text-red-600">{error}</p>
-					) : categories.length === 0 ? (
-						<p className="text-sm text-zinc-600">Nessuna categoria disponibile.</p>
-					) : (
-						<>
-							<CategoriesTable categories={categories} />
-							<CategoriesCards categories={categories} />
-						</>
-					)}
-				</CardContent>
-			</Card>
+			<div className="md:hidden">
+				{error ? <p className="text-sm text-red-600">{error}</p> : categories.length === 0 ? <p className="text-sm text-zinc-600">Nessuna categoria disponibile.</p> : <CategoriesCards categories={categories} />}
+			</div>
+			<div className="hidden md:block">
+				{error ? <p className="text-sm text-red-600">{error}</p> : categories.length === 0 ? <p className="text-sm text-zinc-600">Nessuna categoria disponibile.</p> : <CategoriesTable categories={categories} />}
+			</div>
 		</section>
 	);
 }

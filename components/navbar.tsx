@@ -10,6 +10,7 @@ const navItems = [
 	{ href: "/", label: "Home" },
 	{ href: "/service", label: "Servizi" },
 	{ href: "/aboutUs", label: "Chi siamo" },
+	{ href: "/reviews", label: "Recensioni" },
 	{ href: "/contacts", label: "Contattaci" },
 ];
 

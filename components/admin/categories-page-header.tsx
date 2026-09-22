@@ -9,22 +9,18 @@ export function CategoriesPageHeader() {
 	const isAdmin = user?.employee.role === "admin";
 
 	return (
-		<header className="flex flex-wrap items-center justify-between gap-3">
-			<div>
-				<h1 className="text-2xl font-semibold text-zinc-900">Categorie</h1>
-				<p className="mt-1 text-sm text-zinc-600">
-					Gestisci le categorie dei servizi del tuo salone.
-				</p>
-				<p className="mt-2 text-xs text-zinc-500">
-					Staff e admin visualizzano anche le categorie disattive; solo gli admin possono
-					crearle, modificarle o cambiarne lo stato.
-				</p>
-			</div>
-			{isAdmin ? (
-				<Link href="/admin/categories/new">
-					<Button>Aggiungi Categoria</Button>
-				</Link>
-			) : null}
-		</header>
+		<>
+			<header className="flex items-center justify-between gap-3 md:hidden">
+				<h1 className="text-xl font-semibold text-zinc-900">Lista categorie</h1>
+				{isAdmin ? <Link href="/admin/categories/new"><Button>Aggiungi</Button></Link> : null}
+			</header>
+			<header className="hidden flex-wrap items-center justify-between gap-3 md:flex">
+				<div>
+					<h1 className="text-2xl font-semibold text-zinc-900">Categorie</h1>
+					<p className="mt-1 text-sm text-zinc-600">Gestisci le categorie dei servizi del tuo salone.</p>
+				</div>
+				{isAdmin ? <Link href="/admin/categories/new"><Button>Aggiungi</Button></Link> : null}
+			</header>
+		</>
 	);
 }

@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useAuthSession } from "@/components/auth/employee-session-provider";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { CategoryStatusFilter, type CategoryStatusFilterValue } from "./category-status-filter";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import {
@@ -25,6 +28,7 @@ export type CategoryItem = {
 
 type SortKey = "name" | "displayOrder" | "isActive";
 type SortDir = "asc" | "desc";
+const PAGE_SIZE = 20;
 
 function sortCategories(
 	categories: CategoryItem[],
@@ -82,6 +86,9 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 
 	const [sortKey, setSortKey] = useState<SortKey>("displayOrder");
 	const [sortDir, setSortDir] = useState<SortDir>("asc");
+	const [search, setSearch] = useState("");
+	const [statusFilter, setStatusFilter] = useState<CategoryStatusFilterValue>("all");
+	const [page, setPage] = useState(1);
 	const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 	const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 	const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -89,6 +96,7 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 	const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
 	const handleSort = useCallback((key: SortKey) => {
+		setPage(1);
 		setSortKey((k) => {
 			if (k === key) {
 				setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -99,7 +107,15 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 		});
 	}, []);
 
-	const sorted = sortCategories(categories, sortKey, sortDir);
+	const filtered = categories.filter((category) => {
+		const matchesSearch = category.name.toLocaleLowerCase("it-IT").includes(search.trim().toLocaleLowerCase("it-IT"));
+		const matchesStatus = statusFilter === "all" || category.isActive === (statusFilter === "active");
+		return matchesSearch && matchesStatus;
+	});
+	const sorted = sortCategories(filtered, sortKey, sortDir);
+	const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+	const currentPage = Math.min(page, totalPages);
+	const paginatedCategories = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
 	const requestToggleActive = (category: CategoryItem) => {
 		setOpenMenuId(null);
@@ -179,10 +195,21 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 	};
 
 	return (
-		<div className="hidden md:block overflow-x-auto rounded-lg border border-zinc-200 min-h-[400px]">
+		<div className="hidden min-h-[400px] overflow-hidden rounded-lg border border-zinc-200 bg-white md:block">
+			<div className="flex flex-wrap items-end gap-3 border-b border-zinc-200 p-4">
+				<div className="w-full max-w-sm">
+					<label htmlFor="categories-search" className="mb-1.5 block text-sm font-semibold text-zinc-900">Cerca categorie</label>
+					<div className="relative">
+						<Input id="categories-search" type="text" inputMode="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Nome categoria" className="pr-10" />
+						{search ? <button type="button" onClick={() => { setSearch(""); setPage(1); }} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-red-500 hover:text-red-700" aria-label="Cancella ricerca"><X className="h-4 w-4" /></button> : null}
+					</div>
+				</div>
+				<CategoryStatusFilter value={statusFilter} onChange={(value) => { setStatusFilter(value); setPage(1); }} />
+			</div>
+			<div className="overflow-x-auto">
 			<table className="w-full text-sm">
 				<thead>
-					<tr className="border-b border-zinc-200 bg-zinc-50 text-left">
+					<tr className="border-b border-zinc-200 bg-white text-left">
 						<th className="px-4 py-3">
 							<button
 								type="button"
@@ -220,7 +247,7 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 					</tr>
 				</thead>
 				<tbody>
-					{sorted.map((category) => (
+					{paginatedCategories.map((category) => (
 						<tr
 							key={category.id}
 							onDoubleClick={() => handleRowDoubleClick(category.id)}
@@ -294,8 +321,19 @@ export function CategoriesTable({ categories }: { categories: CategoryItem[] }) 
 							) : null}
 						</tr>
 					))}
+					{sorted.length === 0 ? <tr><td colSpan={isAdmin ? 5 : 4} className="px-4 py-8 text-center text-zinc-600">Nessuna categoria corrisponde alla ricerca.</td></tr> : null}
 				</tbody>
 			</table>
+			</div>
+			{sorted.length > PAGE_SIZE ? (
+				<div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-4 py-3">
+					<p className="text-sm text-zinc-600">Pagina {currentPage} di {totalPages} · {sorted.length} categorie</p>
+					<div className="flex items-center gap-2">
+						<Button type="button" variant="outline" size="sm" onClick={() => setPage((current) => current - 1)} disabled={currentPage === 1}>Precedente</Button>
+						<Button type="button" variant="outline" size="sm" onClick={() => setPage((current) => current + 1)} disabled={currentPage === totalPages}>Successiva</Button>
+					</div>
+				</div>
+			) : null}
 
 			{openMenuId && menuPosition && typeof document !== "undefined"
 				? createPortal(

@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CustomersCards } from "@/components/admin/customers-cards";
 import { CustomersTable } from "@/components/admin/customers-table";
 import { createClient } from "@supabase/supabase-js";
@@ -74,8 +73,12 @@ export default async function AdminCustomersPage() {
 	const { customers, error } = await getCustomers();
 
 	return (
-		<section className="space-y-6">
-			<header className="flex flex-wrap items-center justify-between gap-3">
+		<section className="-mt-3 space-y-6 md:mt-0">
+			<header className="flex items-center justify-between gap-3 md:hidden">
+				<h1 className="text-xl font-semibold text-zinc-900">Lista clienti</h1>
+				<Link href="/admin/customers/new"><Button>Aggiungi</Button></Link>
+			</header>
+			<header className="hidden flex-wrap items-center justify-between gap-3 md:flex">
 				<div>
 					<h1 className="text-2xl font-semibold text-zinc-900">Clienti</h1>
 					<p className="mt-1 text-sm text-zinc-600">
@@ -83,27 +86,16 @@ export default async function AdminCustomersPage() {
 					</p>
 				</div>
 				<Link href="/admin/customers/new">
-					<Button>Aggiungi Cliente</Button>
+					<Button>Aggiungi</Button>
 				</Link>
 			</header>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Lista Clienti</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{error ? (
-						<p className="text-sm text-red-600">{error}</p>
-					) : customers.length === 0 ? (
-						<p className="text-sm text-zinc-600">Nessun cliente disponibile.</p>
-					) : (
-						<>
-							<CustomersTable customers={customers} />
-							<CustomersCards customers={customers} />
-						</>
-					)}
-				</CardContent>
-			</Card>
+			<div className="md:hidden">
+				{error ? <p className="text-sm text-red-600">{error}</p> : customers.length === 0 ? <p className="text-sm text-zinc-600">Nessun cliente disponibile.</p> : <CustomersCards customers={customers} />}
+			</div>
+			<div className="hidden md:block">
+				{error ? <p className="text-sm text-red-600">{error}</p> : customers.length === 0 ? <p className="text-sm text-zinc-600">Nessun cliente disponibile.</p> : <CustomersTable customers={customers} />}
+			</div>
 		</section>
 	);
 }

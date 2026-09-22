@@ -2,6 +2,7 @@ import { CustomerForm } from "@/components/admin/customer-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 type RawCustomer = Record<string, unknown>;
@@ -246,9 +247,10 @@ export default async function CustomerPage({
 					<h1 className="text-2xl font-semibold text-zinc-900">Nuovo Cliente</h1>
 					<Link
 						href="/admin/customers"
-						className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+						aria-label="Torna ai clienti"
+						className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-100 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand/35"
 					>
-						Torna ai clienti
+						<ArrowLeft aria-hidden="true" className="size-5" />
 					</Link>
 				</header>
 				<CustomerForm customer={null} />
@@ -266,9 +268,10 @@ export default async function CustomerPage({
 				<h1 className="text-2xl font-semibold text-zinc-900">Modifica Cliente</h1>
 				<Link
 					href="/admin/customers"
-					className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+					aria-label="Torna ai clienti"
+					className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-100 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand/35"
 				>
-					Torna ai clienti
+					<ArrowLeft aria-hidden="true" className="size-5" />
 				</Link>
 			</header>
 			<CustomerForm customer={customer} />

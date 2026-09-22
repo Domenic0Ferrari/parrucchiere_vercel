@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { matchesCustomerSearch } from "@/lib/customer-search";
 import type { CustomerItem } from "@/app/admin/customers/page";
 
 function formatDate(value: string | null) {
@@ -27,7 +30,9 @@ export function CustomersCards({ customers }: { customers: CustomerItem[] }) {
 	const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 	const [deletingId, setDeletingId] = useState<string | null>(null);
 	const [confirmCustomer, setConfirmCustomer] = useState<CustomerItem | null>(null);
+	const [search, setSearch] = useState("");
 	const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+	const filteredCustomers = customers.filter((customer) => matchesCustomerSearch(customer, search));
 
 	const closeMenu = () => {
 		setOpenMenuId(null);
@@ -76,11 +81,18 @@ export function CustomersCards({ customers }: { customers: CustomerItem[] }) {
 
 	return (
 		<>
+			<div className="mb-4 md:hidden">
+				<label htmlFor="customers-search-mobile" className="mb-1.5 block text-sm font-semibold text-zinc-900">Cerca clienti</label>
+				<div className="relative">
+					<Input id="customers-search-mobile" type="text" inputMode="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, telefono o email" className="pr-10" />
+					{search ? <button type="button" onClick={() => setSearch("")} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-red-500 transition hover:text-red-700" aria-label="Cancella ricerca"><X className="h-4 w-4" /></button> : null}
+				</div>
+			</div>
 			<ul className="space-y-3 md:hidden">
-				{customers.map((customer) => (
+				{filteredCustomers.map((customer) => (
 					<li
 						key={customer.id}
-						className="rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700"
+						className="rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700"
 					>
 						<div className="flex items-start justify-between gap-2">
 							<div className="min-w-0 flex-1">
@@ -135,6 +147,7 @@ export function CustomersCards({ customers }: { customers: CustomerItem[] }) {
 						</div>
 					</li>
 				))}
+				{filteredCustomers.length === 0 ? <li className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600">Nessun cliente corrisponde alla ricerca.</li> : null}
 			</ul>
 
 			{openMenuId && menuPosition && typeof document !== "undefined"

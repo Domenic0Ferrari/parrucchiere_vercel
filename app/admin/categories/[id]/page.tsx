@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { Suspense } from "react";
 import { CategoryForm } from "@/components/admin/category-form";
 
@@ -67,9 +68,10 @@ export default async function CategoryPage({
 					<h1 className="text-2xl font-semibold text-zinc-900">Nuova Categoria</h1>
 					<Link
 						href="/admin/categories"
-						className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+						aria-label="Torna alle categorie"
+						className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-100 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand/35"
 					>
-						Torna alle categorie
+						<ArrowLeft aria-hidden="true" className="size-5" />
 					</Link>
 				</header>
 				<Suspense fallback={<p className="text-sm text-zinc-600">Caricamento form...</p>}>
@@ -88,9 +90,10 @@ export default async function CategoryPage({
 				<h1 className="text-2xl font-semibold text-zinc-900">Modifica Categoria</h1>
 				<Link
 					href="/admin/categories"
-					className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+					aria-label="Torna alle categorie"
+					className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-100 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand/35"
 				>
-					Torna alle categorie
+					<ArrowLeft aria-hidden="true" className="size-5" />
 				</Link>
 			</header>
 				<Suspense fallback={<p className="text-sm text-zinc-600">Caricamento form...</p>}>

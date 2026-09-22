@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useAuthSession } from "@/components/auth/employee-session-provider";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
+import { CategoryStatusFilter, type CategoryStatusFilterValue } from "./category-status-filter";
 import {
 	findActivePositionConflict,
 	reactivatePositionConflictMessage,
@@ -39,7 +42,14 @@ export function CategoriesCards({ categories }: { categories: CategoryItem[] }) 
 	const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 	const [updatingId, setUpdatingId] = useState<string | null>(null);
 	const [confirmCategory, setConfirmCategory] = useState<CategoryItem | null>(null);
+	const [search, setSearch] = useState("");
+	const [statusFilter, setStatusFilter] = useState<CategoryStatusFilterValue>("all");
 	const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+	const filteredCategories = categories.filter((category) => {
+		const matchesSearch = category.name.toLocaleLowerCase("it-IT").includes(search.trim().toLocaleLowerCase("it-IT"));
+		const matchesStatus = statusFilter === "all" || category.isActive === (statusFilter === "active");
+		return matchesSearch && matchesStatus;
+	});
 
 	const requestToggleActive = (category: CategoryItem) => {
 		setOpenMenuId(null);
@@ -102,12 +112,22 @@ export function CategoriesCards({ categories }: { categories: CategoryItem[] }) 
 
 	return (
 		<>
+			<div className="mb-4 space-y-3 md:hidden">
+				<div>
+					<label htmlFor="categories-search-mobile" className="mb-1.5 block text-sm font-semibold text-zinc-900">Cerca categorie</label>
+					<div className="relative">
+						<Input id="categories-search-mobile" type="text" inputMode="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome categoria" className="pr-10" />
+						{search ? <button type="button" onClick={() => setSearch("")} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-red-500 hover:text-red-700" aria-label="Cancella ricerca"><X className="h-4 w-4" /></button> : null}
+					</div>
+				</div>
+				<CategoryStatusFilter value={statusFilter} onChange={setStatusFilter} />
+			</div>
 			<ul className="space-y-3 md:hidden">
-				{categories.map((category) => (
+				{filteredCategories.map((category) => (
 					<li
 						key={category.id}
 						className={cn(
-							"rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700",
+							"rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700",
 							!category.isActive ? "bg-zinc-50" : ""
 						)}
 					>
@@ -188,6 +208,7 @@ export function CategoriesCards({ categories }: { categories: CategoryItem[] }) 
 						</div>
 					</li>
 				))}
+				{filteredCategories.length === 0 ? <li className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600">Nessuna categoria corrisponde alla ricerca.</li> : null}
 			</ul>
 
 			{openMenuId && menuPosition && typeof document !== "undefined"
