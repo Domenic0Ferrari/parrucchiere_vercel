@@ -8,7 +8,23 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 Il visitatore invia una recensione da `/reviews/new`. Il database la crea sempre con stato `pending`; il visitatore non può leggerla o modificarla dopo l'invio. Un admin la approva o la rifiuta in `/admin/reviews`. Solo le recensioni approvate appaiono nella home e in `/reviews`. Il trigger registra data e utente della moderazione. Le regole sono nel database: nascondere il link admin nell'interfaccia non sostituisce le policy RLS.
 
-Controllo consigliato dopo la migrazione: invia una recensione senza accesso, verifica che non appaia nella pagina pubblica, approvala con un account admin e verifica che appaia; prova anche il rifiuto e un accesso con dipendente non admin. L'invio pubblico può generare spam nella coda: se serve un limite ai tentativi, aggiungere un controllo server con CAPTCHA o rate limiting prima del lancio su larga scala.
+Controllo consigliato dopo la migrazione: invia una recensione senza accesso, verifica che non appaia nella pagina pubblica, approvala con un account admin e verifica che appaia; prova anche il rifiuto e un accesso con dipendente non admin. Prima di un lancio su larga scala conviene proteggere anche questo form con CAPTCHA o rate limiting dedicato.
+
+## Sicurezza prenotazioni
+
+Prima di pubblicare l'API di prenotazione, esegui `supabase/booking-security.sql` nel SQL Editor. La migrazione aggiunge:
+
+- il blocco atomico delle sovrapposizioni per lo stesso addetto;
+- una chiave idempotente per non duplicare i retry;
+- il rate limit condiviso tra tutte le istanze serverless.
+
+Configura anche `SUPABASE_SERVICE_ROLE_KEY` soltanto nell'ambiente server di Vercel. È consigliata una variabile server `BOOKING_RATE_LIMIT_SECRET` lunga e casuale; se assente viene usata la service-role come segreto HMAC. Non usare mai il prefisso `NEXT_PUBLIC_` per queste due variabili.
+
+La finestra pubblica consente prenotazioni nei prossimi 28 giorni, con almeno 30 minuti di anticipo. I limiti sono definiti in `app/api/booking/route.ts`.
+
+## Sessione amministrativa
+
+La sessione Supabase è salvata in cookie e aggiornata da `proxy.ts`, così può essere verificata anche nei Server Component. Il layout `/admin` verifica sul server sia il token sia l'esistenza di un dipendente attivo; le policy RLS del database restano comunque obbligatorie per autorizzare ogni lettura e modifica.
 
 ## Getting Started
 

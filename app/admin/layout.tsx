@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import AdminAuthGuard from "@/components/admin/admin-auth-guard";
 import AdminShell from "@/components/admin/admin-shell";
+import { requireActiveEmployee } from "@/lib/admin-auth-server";
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+	await requireActiveEmployee();
+
 	return (
-		<AdminAuthGuard>
-			<AdminShell>{children}</AdminShell>
-		</AdminAuthGuard>
+		<AdminShell>{children}</AdminShell>
 	);
 }

@@ -51,6 +51,7 @@ function BookPageContent() {
 	const nameErrorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const continueToDetailsRef = useRef<HTMLButtonElement | null>(null);
 	const bookingFormRef = useRef<HTMLFormElement | null>(null);
+	const bookingRequestIdRef = useRef<string | null>(null);
 	const datesScrollerRef = useRef<HTMLDivElement | null>(null);
 	const shouldScrollToStepRef = useRef(false);
 	const [phone, setPhone] = useState("");
@@ -138,7 +139,8 @@ function BookPageContent() {
 		}
 		setSaving(true);
 		try {
-			const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId, employeeId, date, time, name, phone, email }) });
+			bookingRequestIdRef.current ??= window.crypto.randomUUID();
+			const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": bookingRequestIdRef.current }, body: JSON.stringify({ serviceId, employeeId, date, time, name, phone, email }) });
 			const result = await response.json(); if (!response.ok) throw new Error(result.error);
 			setComplete(true);
 		} catch (error) { toast.error(error instanceof Error ? error.message : "Impossibile inviare la prenotazione."); }

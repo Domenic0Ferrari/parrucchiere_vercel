@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { CustomersCards } from "@/components/admin/customers-cards";
 import { CustomersTable } from "@/components/admin/customers-table";
-import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type RawCustomer = Record<string, unknown>;
 
@@ -41,14 +41,7 @@ function normalizeCustomer(row: RawCustomer, index: number): CustomerItem {
 }
 
 async function getCustomers() {
-	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-	if (!supabaseUrl || !supabaseAnonKey) {
-		return { customers: [], error: "Config Supabase mancante nelle variabili ambiente." };
-	}
-
-	const supabase = createClient(supabaseUrl, supabaseAnonKey);
+	const supabase = await createSupabaseServerClient();
 	const { data, error } = await supabase
 		.from(TABLE_NAME)
 		.select("id, created_at, name, phone, email, note, auth_user_id, is_active")

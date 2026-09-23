@@ -1,9 +1,9 @@
 import { CustomerForm } from "@/components/admin/customer-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type RawCustomer = Record<string, unknown>;
 type RawAppointment = Record<string, unknown>;
@@ -84,11 +84,7 @@ function normalizeAppointment(
 }
 
 async function getSupabaseClient() {
-	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-	if (!supabaseUrl || !supabaseAnonKey) return null;
-
-	return createClient(supabaseUrl, supabaseAnonKey);
+	return createSupabaseServerClient();
 }
 
 async function getCustomer(id: string) {

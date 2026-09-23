@@ -1,12 +1,14 @@
 import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
+export type EmployeeRole = "staff" | "admin";
+
 export type EmployeeProfile = {
 	id: string;
 	auth_user_id: string;
 	name: string;
 	is_active: boolean;
-	role: string;
+	role: EmployeeRole;
 };
 
 export type AppUser = {
@@ -94,6 +96,14 @@ async function loadEmployeeProfile(
 		throw new AuthSessionError(
 			"Il tuo account è stato disattivato. Contatta l'amministratore.",
 			"INACTIVE_EMPLOYEE"
+		);
+	}
+
+	if (employee.role !== "staff" && employee.role !== "admin") {
+		await signOutAndClearSession(supabase);
+		throw new AuthSessionError(
+			"Il tuo account non è abilitato all'accesso.",
+			"ACCESS_DENIED"
 		);
 	}
 

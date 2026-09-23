@@ -1,8 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ServiceForm, type ServiceCategoryOption } from "@/components/admin/service-form";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type RawService = Record<string, unknown>;
 
@@ -49,11 +49,7 @@ function normalizeCategory(row: RawService): ServiceCategoryOption {
 }
 
 async function getSupabaseClient() {
-	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-	if (!supabaseUrl || !supabaseAnonKey) return null;
-
-	return createClient(supabaseUrl, supabaseAnonKey);
+	return createSupabaseServerClient();
 }
 
 async function getCategories() {
