@@ -1,7 +1,7 @@
 import { CategoriesCards } from "@/components/admin/categories-cards";
 import { CategoriesPageHeader } from "@/components/admin/categories-page-header";
 import { CategoriesTable } from "@/components/admin/categories-table";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type RawCategory = Record<string, unknown>;
 
@@ -42,14 +42,7 @@ function normalizeCategory(row: RawCategory, index: number): CategoryItem {
 }
 
 async function getCategories() {
-	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-	if (!supabaseUrl || !supabaseAnonKey) {
-		return { categories: [], error: "Config Supabase mancante nelle variabili ambiente." };
-	}
-
-	const supabase = createClient(supabaseUrl, supabaseAnonKey);
+	const supabase = await createSupabaseServerClient();
 	const { data, error } = await supabase
 		.from(TABLE_NAME)
 		.select("*")

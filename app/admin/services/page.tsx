@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { ServicesCards } from "@/components/admin/services-cards";
 import { ServicesTable } from "@/components/admin/services-table";
-import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type RawService = Record<string, unknown>;
 
@@ -85,14 +85,7 @@ function normalizeServiceCategory(row: RawService): {
 }
 
 async function getServices() {
-	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-	if (!supabaseUrl || !supabaseAnonKey) {
-		return { services: [], error: "Config Supabase mancante nelle variabili ambiente." };
-	}
-
-	const supabase = createClient(supabaseUrl, supabaseAnonKey);
+	const supabase = await createSupabaseServerClient();
 	const { data, error } = await supabase
 		.from(TABLE_NAME)
 		.select("*")

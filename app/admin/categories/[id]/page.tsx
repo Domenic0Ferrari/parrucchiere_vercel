@@ -1,9 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Suspense } from "react";
 import { CategoryForm } from "@/components/admin/category-form";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type RawCategory = Record<string, unknown>;
 
@@ -39,11 +39,7 @@ function normalizeCategory(row: RawCategory): {
 }
 
 async function getCategory(id: string) {
-	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-	if (!supabaseUrl || !supabaseAnonKey) return null;
-
-	const supabase = createClient(supabaseUrl, supabaseAnonKey);
+	const supabase = await createSupabaseServerClient();
 	const { data, error } = await supabase
 		.from("categories")
 		.select("*")
