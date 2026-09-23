@@ -19,6 +19,7 @@ export const getActiveEmployee = cache(async (): Promise<EmployeeProfile | null>
 		.maybeSingle();
 
 	if (error || !employee) return null;
+	if (employee.role !== "staff" && employee.role !== "admin") return null;
 	return employee as EmployeeProfile;
 });
 

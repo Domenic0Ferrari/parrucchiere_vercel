@@ -2,6 +2,21 @@
 -- Eseguire dopo un backup e prima del collaudo descritto in SETUP_PRODUZIONE.md.
 begin;
 
+-- Gli addetti del salone usano soltanto i ruoli staff e admin.
+-- L'admin rimane un addetto prenotabile; il ruolo cambia i permessi del portale.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.employees'::regclass
+      and conname = 'employees_role_check'
+  ) then
+    alter table public.employees
+      add constraint employees_role_check check (role in ('staff', 'admin'));
+  end if;
+end;
+$$;
+
 create or replace function public.is_active_employee()
 returns boolean
 language sql
@@ -14,6 +29,7 @@ as $$
     from public.employees employee
     where employee.auth_user_id = (select auth.uid())
       and employee.is_active = true
+      and employee.role in ('staff', 'admin')
   );
 $$;
 
@@ -54,7 +70,7 @@ drop policy if exists "Active employees read permitted employee profiles" on pub
 create policy "Active employees read permitted employee profiles"
 on public.employees for select to authenticated
 using (
-  (auth_user_id = (select auth.uid()) and is_active = true)
+  (auth_user_id = (select auth.uid()) and is_active = true and role in ('staff', 'admin'))
   or (select public.is_active_admin())
 );
 

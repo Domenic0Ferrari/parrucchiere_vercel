@@ -80,10 +80,10 @@ select id, auth_user_id, name, role, is_active
 from public.employees
 where auth_user_id is null
    or role is null
-   or role not in ('admin', 'employee');
+   or role not in ('staff', 'admin');
 ```
 
-Se nel progetto usi un nome ruolo diverso da `employee`, non modificarlo alla cieca: prima aggiorna `core-rls.sql` e il codice applicativo.
+I ruoli ammessi sono `staff` e `admin`. Entrambi sono addetti prenotabili; il ruolo determina i permessi nel portale. I clienti sono contatti nella tabella `customers` e non hanno ancora un login esterno.
 
 ### Duplicati clienti
 
@@ -138,6 +138,7 @@ Il file:
 
 - abilita RLS su tutte le tabelle operative;
 - introduce i controlli riutilizzabili `is_active_employee()` e `is_active_admin()`;
+- limita `employees.role` a `staff` e `admin` con un vincolo SQL;
 - elimina le policy troppo permissive o assegnate al ruolo sbagliato;
 - consente agli admin di leggere il team;
 - consente ai dipendenti di leggere orari e chiusure necessari all'agenda;
@@ -385,7 +386,7 @@ Non applicare ancora automaticamente questi cambiamenti: richiedono la verifica 
 
 1. Rendere `NOT NULL` nomi, date, stati, durata e chiavi esterne obbligatorie.
 2. Verificare o aggiungere foreign key per appuntamenti, categorie-servizi, orari e chiusure.
-3. Aggiungere check constraint per `role`, `status`, `appointment_source`, prezzi, durate e `day_of_week`.
+3. Aggiungere check constraint per `status`, `appointment_source`, prezzi, durate e `day_of_week`.
 4. Verificare il vincolo unico `(salon_id, day_of_week)` su `salon_opening_hours`.
 5. Aggiungere indici per storico cliente e agenda per addetto/data.
 6. Decidere se `services.price int4` rappresenta euro interi oppure centesimi. Per prezzi come `19,90` conviene `numeric(10,2)` oppure centesimi interi con conversione esplicita nell'app.
