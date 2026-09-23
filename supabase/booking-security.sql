@@ -64,7 +64,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  current_time timestamptz := clock_timestamp();
+  v_now timestamptz := clock_timestamp();
   next_count integer;
 begin
   if p_key is null or length(p_key) < 16 or p_limit < 1 or p_window_seconds < 1 then
@@ -72,16 +72,16 @@ begin
   end if;
 
   insert into public.booking_rate_limits as limits (rate_key, window_started_at, request_count)
-  values (p_key, current_time, 1)
+  values (p_key, v_now, 1)
   on conflict (rate_key) do update
   set
     window_started_at = case
-      when limits.window_started_at <= current_time - make_interval(secs => p_window_seconds)
-        then current_time
+      when limits.window_started_at <= v_now - make_interval(secs => p_window_seconds)
+        then v_now
       else limits.window_started_at
     end,
     request_count = case
-      when limits.window_started_at <= current_time - make_interval(secs => p_window_seconds)
+      when limits.window_started_at <= v_now - make_interval(secs => p_window_seconds)
         then 1
       else limits.request_count + 1
     end
@@ -90,7 +90,7 @@ begin
   -- Pulizia opportunistica per non far crescere indefinitamente la tabella.
   if random() < 0.01 then
     delete from public.booking_rate_limits
-    where window_started_at < current_time - interval '1 day';
+    where window_started_at < v_now - interval '1 day';
   end if;
 
   return next_count <= p_limit;
