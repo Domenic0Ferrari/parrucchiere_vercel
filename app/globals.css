@@ -108,13 +108,6 @@ body {
   animation: mobile-menu-enter 320ms ease-out both;
 }
 
-/* Safari può espandere i controlli nativi per l'orario oltre la loro colonna. */
-@media (max-width: 767px) {
-  .salon-time-input {
-    max-width: calc(100vw - 6.5rem) !important;
-  }
-}
-
 /* Mantiene un feedback coerente per mouse/trackpad senza alterare i controlli disabilitati. */
 button:not(:disabled),
 a[href],

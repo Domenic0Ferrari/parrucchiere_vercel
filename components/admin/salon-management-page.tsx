@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarOff, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, CalendarOff, Clock3, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -603,8 +603,8 @@ export function SalonManagementPage({ section }: { section: SalonManagementSecti
 										<p className="font-semibold text-zinc-900">{day?.label}</p>
 										<div className="mt-0 flex items-center gap-2 lg:mt-3">
 											<Switch
-											checked={hour.is_open}
-											disabled={!hasSalon}
+												checked={hour.is_open}
+												disabled={!hasSalon}
 												onCheckedChange={(checked) =>
 													updateOpeningHour(hour.day_of_week, { is_open: checked })
 												}
@@ -616,34 +616,40 @@ export function SalonManagementPage({ section }: { section: SalonManagementSecti
 										</div>
 									</div>
 
-									<TimeRange
-										label="Orario"
-										startId={`open-${hour.day_of_week}`}
-										endId={`close-${hour.day_of_week}`}
-										start={hour.open_time}
-										end={hour.close_time}
-										disabled={disabled}
-										onStartChange={(value) =>
-											updateOpeningHour(hour.day_of_week, { open_time: value })
-										}
-										onEndChange={(value) =>
-											updateOpeningHour(hour.day_of_week, { close_time: value })
-										}
-									/>
-									<TimeRange
-										label="Pausa (facoltativa)"
-										startId={`break-start-${hour.day_of_week}`}
-										endId={`break-end-${hour.day_of_week}`}
-										start={hour.break_start}
-										end={hour.break_end}
-										disabled={disabled}
-										onStartChange={(value) =>
-											updateOpeningHour(hour.day_of_week, { break_start: value })
-										}
-										onEndChange={(value) =>
-											updateOpeningHour(hour.day_of_week, { break_end: value })
-										}
-									/>
+									{hour.is_open ? (
+										<>
+											<TimeRange
+												label="Orario"
+												startId={`open-${hour.day_of_week}`}
+												endId={`close-${hour.day_of_week}`}
+												start={hour.open_time}
+												end={hour.close_time}
+												disabled={disabled}
+												onStartChange={(value) =>
+													updateOpeningHour(hour.day_of_week, { open_time: value })
+												}
+												onEndChange={(value) =>
+													updateOpeningHour(hour.day_of_week, { close_time: value })
+												}
+											/>
+											<TimeRange
+												label="Pausa (facoltativa)"
+												startId={`break-start-${hour.day_of_week}`}
+												endId={`break-end-${hour.day_of_week}`}
+												start={hour.break_start}
+												end={hour.break_end}
+												disabled={disabled}
+												onStartChange={(value) =>
+													updateOpeningHour(hour.day_of_week, { break_start: value })
+												}
+												onEndChange={(value) =>
+													updateOpeningHour(hour.day_of_week, { break_end: value })
+												}
+											/>
+										</>
+									) : (
+										<p className="text-sm text-zinc-600 lg:col-span-2">Nessun orario: salone chiuso.</p>
+									)}
 									{Object.entries(hoursErrors)
 										.filter(([key]) => key.endsWith(`-${hour.day_of_week}`))
 										.map(([key, message]) => (
@@ -736,7 +742,7 @@ export function SalonManagementPage({ section }: { section: SalonManagementSecti
 						</div>
 						<div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 							<Field id="closure-start-date" label="Da" error={closureErrors.start_date}>
-								<Input
+								<SalonDateTimeInput
 									id="closure-start-date"
 									type="date"
 									value={closureForm.start_date}
@@ -751,7 +757,7 @@ export function SalonManagementPage({ section }: { section: SalonManagementSecti
 								/>
 							</Field>
 							<Field id="closure-end-date" label="A" error={closureErrors.end_date}>
-								<Input
+								<SalonDateTimeInput
 									id="closure-end-date"
 									type="date"
 									value={closureForm.end_date}
@@ -794,7 +800,7 @@ export function SalonManagementPage({ section }: { section: SalonManagementSecti
 							)}
 						>
 							<Field id="closure-start" label="Inizio" error={closureErrors.start_time}>
-								<Input
+								<SalonDateTimeInput
 									id="closure-start"
 									type="time"
 									value={closureForm.start_time}
@@ -808,7 +814,7 @@ export function SalonManagementPage({ section }: { section: SalonManagementSecti
 								/>
 							</Field>
 							<Field id="closure-end" label="Fine" error={closureErrors.end_time}>
-								<Input
+								<SalonDateTimeInput
 									id="closure-end"
 									type="time"
 									value={closureForm.end_time}
@@ -946,6 +952,45 @@ function Field({
 	);
 }
 
+function SalonDateTimeInput({
+	type,
+	value,
+	disabled,
+	className,
+	...props
+}: Omit<React.ComponentProps<"input">, "type" | "value"> & {
+	type: "date" | "time";
+	value: string;
+}) {
+	const displayValue = value
+		? type === "date" ? value.split("-").reverse().join("/") : value.slice(0, 5)
+		: type === "date" ? "Seleziona data" : "Seleziona ora";
+	const Icon = type === "date" ? CalendarDays : Clock3;
+
+	return (
+		<div className="relative min-w-0 w-full overflow-hidden rounded-lg focus-within:ring-2 focus-within:ring-brand/30 md:overflow-visible md:focus-within:ring-0">
+			<div
+				aria-hidden="true"
+				className={cn(
+					"flex h-11 min-w-0 items-center justify-between gap-2 overflow-hidden rounded-lg border border-zinc-300 bg-white px-3 text-base text-zinc-900 shadow-sm md:hidden",
+					!value && "text-zinc-500",
+					disabled && "bg-zinc-100 text-zinc-500"
+				)}
+			>
+				<span className="min-w-0 truncate">{displayValue}</span>
+				<Icon className="size-5 shrink-0 text-zinc-600" />
+			</div>
+			<Input
+				{...props}
+				type={type}
+				value={value}
+				disabled={disabled}
+				className={cn("absolute inset-0 z-10 h-11 cursor-pointer opacity-0 md:static md:z-auto md:h-10 md:opacity-100", className)}
+			/>
+		</div>
+	);
+}
+
 function TimeRange({
 	label,
 	startId,
@@ -970,20 +1015,18 @@ function TimeRange({
 			<p className="mb-2 text-sm font-semibold text-zinc-900">{label}</p>
 			<div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 				<Field id={startId} label="Inizio">
-					<Input
+					<SalonDateTimeInput
 						id={startId}
 						type="time"
-						className="salon-time-input"
 						value={start}
 						disabled={disabled}
 						onChange={(event) => onStartChange(event.target.value)}
 					/>
 				</Field>
 				<Field id={endId} label="Fine">
-					<Input
+					<SalonDateTimeInput
 						id={endId}
 						type="time"
-						className="salon-time-input"
 						value={end}
 						disabled={disabled}
 						onChange={(event) => onEndChange(event.target.value)}
