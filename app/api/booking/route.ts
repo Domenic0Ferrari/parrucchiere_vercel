@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Temporal } from "temporal-polyfill";
 import { buildAvailableSlots, type OpeningHour, type SalonClosure, type TimeInterval } from "@/lib/salon-availability";
 import { consumeRateLimit, isSameOriginRequest, rateLimitKey } from "@/lib/booking-security";
+import { sendBookingConfirmationEmail } from "@/lib/booking-confirmation-email";
 
 const TIME_ZONE = "Europe/Rome";
 const BOOKING_DAYS_AHEAD = 28;
@@ -232,8 +233,14 @@ export async function POST(request: NextRequest) {
 
 		const availability = await availableSlots(supabase, body.employeeId, body.serviceId, body.date);
 		if (!availability.availableSlots.includes(body.time)) return jsonError("Questo orario non è più disponibile.", 409);
-		const { data: service, error: serviceError } = await supabase.from("services").select("price, duration").eq("id", body.serviceId).eq("is_active", true).single();
-		if (serviceError) throw serviceError;
+		const [serviceResult, employeeResult] = await Promise.all([
+			supabase.from("services").select("name, price, duration").eq("id", body.serviceId).eq("is_active", true).single(),
+			supabase.from("employees").select("name").eq("id", body.employeeId).eq("is_active", true).single(),
+		]);
+		if (serviceResult.error) throw serviceResult.error;
+		if (employeeResult.error) throw employeeResult.error;
+		const service = serviceResult.data;
+		const employee = employeeResult.data;
 
 		const [phoneLookup, emailLookup] = await Promise.all([
 			body.phone ? supabase.from("customers").select("id").eq("phone", body.phone).limit(1).maybeSingle() : Promise.resolve({ data: null, error: null }),
@@ -259,6 +266,22 @@ export async function POST(request: NextRequest) {
 				if (duplicate) return bookingSuccess(requestId, duplicate);
 			}
 			throw error;
+		}
+		if (body.email) {
+			try {
+				await sendBookingConfirmationEmail({
+					to: body.email,
+					customerName: body.name,
+					serviceName: service.name,
+					employeeName: employee.name,
+					startTime: appointment.start_time,
+					endTime: appointment.end_time,
+					durationMinutes: appointment.final_duration_minutes,
+					price: appointment.final_price,
+				});
+			} catch (emailError) {
+				console.error("Booking confirmation email error:", { requestId, error: emailError });
+			}
 		}
 		return bookingSuccess(requestId, appointment, 201);
 	} catch (error) {

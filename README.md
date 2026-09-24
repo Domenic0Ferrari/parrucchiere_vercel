@@ -22,6 +22,18 @@ Configura anche `SUPABASE_SERVICE_ROLE_KEY` soltanto nell'ambiente server di Ver
 
 La finestra pubblica consente prenotazioni nei prossimi 28 giorni, con almeno 30 minuti di anticipo. I limiti sono definiti in `app/api/booking/route.ts`.
 
+## Email di conferma prenotazione
+
+Le prenotazioni online con un indirizzo email inviano un riepilogo tramite l'API transazionale di Brevo, dopo il salvataggio dell'appuntamento. Configura sul server:
+
+- `BREVO_API_KEY`: chiave API di Brevo, mai con prefisso `NEXT_PUBLIC_`;
+- `BREVO_SENDER_EMAIL`: indirizzo mittente verificato in Brevo;
+- `BREVO_EMAIL_MODE`: `test` per inviare solo all'indirizzo di prova, `live` per inviare al cliente;
+- `BREVO_SENDER_NAME`: nome visualizzato come mittente (facoltativo);
+- `BREVO_TEST_RECIPIENT`: indirizzo che riceve tutte le conferme quando `BREVO_EMAIL_MODE=test` (obbligatorio in modalità test, con oggetto `[TEST]`).
+
+In assenza della chiave, del mittente o di una modalità esplicita, la prenotazione continua a funzionare senza inviare email. Un errore di invio non annulla una prenotazione già salvata; i retry della stessa richiesta non inviano una seconda email. Prima di impostare `BREVO_EMAIL_MODE=live`, verifica il dominio mittente in Brevo e prova una prenotazione con un indirizzo controllato da te.
+
 ## Sessione amministrativa
 
 La sessione Supabase è salvata in cookie e aggiornata da `proxy.ts`, così può essere verificata anche nei Server Component. Il layout `/admin` verifica sul server sia il token sia l'esistenza di un dipendente attivo; le policy RLS del database restano comunque obbligatorie per autorizzare ogni lettura e modifica.
