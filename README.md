@@ -38,6 +38,16 @@ In assenza della chiave, del mittente o di una modalità esplicita, la prenotazi
 
 La sessione Supabase è salvata in cookie e aggiornata da `proxy.ts`, così può essere verificata anche nei Server Component. Il layout `/admin` verifica sul server sia il token sia l'esistenza di un dipendente attivo; le policy RLS del database restano comunque obbligatorie per autorizzare ogni lettura e modifica.
 
+## Area clienti
+
+Esegui `supabase/customer-accounts.sql` dopo `core-rls.sql`. La migrazione aggiunge il legame univoco con Supabase Auth e una funzione riservata agli admin per associare prenotazioni registrate con il solo telefono. I clienti non leggono direttamente le tabelle: le API verificano la sessione e restituiscono solo i propri dati, senza note interne.
+
+Configura `CUSTOMER_PORTAL_MODE=off|test|live` sul server. Il valore predefinito è `off`. In modalità `test` imposta anche `CUSTOMER_PORTAL_TEST_EMAIL` con l'indirizzo dell'unico account ammesso. Una nuova build Vercel è necessaria dopo aver cambiato la modalità. In modalità `live` la registrazione è disponibile a tutti gli indirizzi verificati.
+
+Le pagine cliente sono `/account/register`, `/account/login` e `/account/bookings`. La registrazione richiede email e password e conferma dell'indirizzo; il recupero password è nel login. Configura in Supabase Auth l'URL del sito e aggiungi agli URL di redirect `https://<dominio>/account/confirm` e `https://<dominio>/account/confirm?next=/account/reset-password`. Le email di Supabase Auth richiedono **SMTP Brevo con una chiave SMTP separata dalla chiave API** usata dal sito. Mantieni la registrazione pubblica disattivata finché dominio mittente, SMTP e redirect non sono verificati. Per il flusso SSR, il template di conferma può puntare a `/account/confirm?token_hash={{ .TokenHash }}&type=email`; il recupero password a `/account/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/account/reset-password`.
+
+Quando un cliente verifica l'email, un unico contatto attivo con lo stesso indirizzo viene associato automaticamente. I duplicati richiedono verifica manuale; per i contatti con solo telefono l'admin usa «Collega a un account cliente» nella scheda del contatto. Le prenotazioni come ospite continuano a funzionare. Il cliente può cambiare servizio, addetto, data e ora o annullare fino a 24 ore prima dell'inizio; valgono le disponibilità pubbliche e la finestra di 28 giorni. Le prenotazioni create dallo staff sono incluse. Le notifiche di modifica e annullamento seguono `BREVO_EMAIL_MODE` e vanno solo al cliente (al destinatario di prova in modalità test).
+
 ## Getting Started
 
 First, run the development server:

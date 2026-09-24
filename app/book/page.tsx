@@ -56,6 +56,7 @@ function BookPageContent() {
 	const shouldScrollToStepRef = useRef(false);
 	const [phone, setPhone] = useState("");
 	const [email, setEmail] = useState("");
+	const [accountLinked, setAccountLinked] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
@@ -76,6 +77,15 @@ function BookPageContent() {
 			setServiceId(requested?.id ?? ""); setEmployeeId(data.employees[0]?.id ?? "");
 		}).catch((error: Error) => toast.error(error.message)).finally(() => setLoading(false));
 	}, [requestedServiceName]);
+
+	useEffect(() => {
+		void fetch("/api/account/appointments?page=0").then(async (response) => {
+			if (!response.ok) return;
+			const data = await response.json() as { customer?: { name: string; email: string; phone: string | null } };
+			if (!data.customer) return;
+			setName(data.customer.name); setEmail(data.customer.email); setPhone(data.customer.phone ?? ""); setAccountLinked(true);
+		}).catch(() => {});
+	}, []);
 
 	useEffect(() => {
 		const firstBookableDate = dates.find((item) => !isClosedDay(item, openingHours, closures));
@@ -213,7 +223,7 @@ function BookPageContent() {
 				<button type="button" onClick={goToTimes} className="min-h-12 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button>
 			</div> : null}
 			{step === 2 ? <div className="grid gap-6"><Field label="Orario">{slotsLoading ? <LoadingIndicator className="min-h-32 rounded-xl border border-zinc-200 bg-zinc-50" label="Caricamento orari disponibili..." /> : <><div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">{slots.map((item) => <button key={item.time} type="button" disabled={item.disabled} aria-pressed={time === item.time} onClick={() => selectTime(item.time)} className={`min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold ${time === item.time ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${item.disabled ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{item.time}</button>)}</div>{slots.length === 0 && <p className="text-sm text-zinc-600">Nessun orario disponibile in questo giorno.</p>}</>}</Field><div className="flex gap-3"><button type="button" onClick={() => changeStep(1)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button ref={continueToDetailsRef} type="button" onClick={goToDetails} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button></div></div> : null}
-			{step === 3 ? <div className="grid gap-6"><div className="grid gap-4 sm:grid-cols-2"><Field label="Nome e cognome"><input value={name} aria-invalid={nameError} onChange={(event) => setName(event.target.value)} className={`input ${nameError ? "input-error" : ""}`} /></Field><Field label="Telefono"><input value={phone} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div><p className="text-xs leading-relaxed text-zinc-500">Inserisci telefono o email per completare la prenotazione.</p><div className="flex gap-3"><button type="button" onClick={() => changeStep(2)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button disabled={saving} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma"}</button></div></div> : null}
+			{step === 3 ? <div className="grid gap-6"><div className="grid gap-4 sm:grid-cols-2"><Field label="Nome e cognome"><input value={name} readOnly={accountLinked} aria-invalid={nameError} onChange={(event) => setName(event.target.value)} className={`input ${nameError ? "input-error" : ""}`} /></Field><Field label="Telefono"><input value={phone} readOnly={accountLinked} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} readOnly={accountLinked} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div><p className="text-xs leading-relaxed text-zinc-500">{accountLinked ? "Questa prenotazione sarà collegata al tuo account." : "Inserisci telefono o email per completare la prenotazione."}</p><div className="flex gap-3"><button type="button" onClick={() => changeStep(2)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button disabled={saving} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma"}</button></div></div> : null}
 		</form>}
 		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #DED9D2; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#242827; background:#FFFEFC; } .input-error { border-color:#587983; background:color-mix(in srgb, #587983 10%, #F7F3ED); }`}</style>
 	</main></div>;

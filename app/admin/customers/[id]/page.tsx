@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getActiveEmployee } from "@/lib/admin-auth-server";
+import { CustomerAccountLink } from "@/components/admin/customer-account-link";
 
 type RawCustomer = Record<string, unknown>;
 type RawAppointment = Record<string, unknown>;
@@ -14,6 +16,7 @@ type CustomerData = {
 	phone: string | null;
 	email: string | null;
 	note: string | null;
+	authUserId: string | null;
 };
 
 type LastAppointment = {
@@ -42,6 +45,7 @@ function normalizeCustomer(row: RawCustomer): {
 	phone: string | null;
 	email: string | null;
 	note: string | null;
+	authUserId: string | null;
 } {
 	return {
 		id: String(row.id ?? ""),
@@ -49,6 +53,7 @@ function normalizeCustomer(row: RawCustomer): {
 		phone: toNullableString(row.phone),
 		email: toNullableString(row.email),
 		note: toNullableString(row.note),
+		authUserId: toNullableString(row.auth_user_id),
 	};
 }
 
@@ -93,7 +98,7 @@ async function getCustomer(id: string) {
 
 	const { data, error } = await supabase
 		.from("customers")
-		.select("id, name, phone, email, note")
+		.select("id, name, phone, email, note, auth_user_id")
 		.eq("id", id)
 		.single();
 
@@ -263,6 +268,7 @@ export default async function CustomerPage({
 	const customer = await getCustomer(id);
 	if (!customer) notFound();
 	const lastAppointment = await getLastAppointment(customer.id);
+	const employee = await getActiveEmployee();
 
 	return (
 		<section className="mx-auto w-full max-w-2xl space-y-6">
@@ -278,6 +284,7 @@ export default async function CustomerPage({
 			</header>
 			<CustomerForm customer={customer} />
 			<CustomerSummaryCard customer={customer} lastAppointment={lastAppointment} />
+			{employee?.role === "admin" && !customer.authUserId ? <CustomerAccountLink customerId={customer.id} /> : null}
 		</section>
 	);
 }

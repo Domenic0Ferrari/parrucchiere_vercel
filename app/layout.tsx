@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import { AuthSessionProvider } from "@/components/auth/employee-session-provider";
 import Navbar from "@/components/navbar";
+import { customerPortalMode } from "@/lib/customer-account";
 
 export const metadata: Metadata = {
 	title: "Parruchiere Prova",
@@ -24,7 +25,7 @@ export default function RootLayout({
 		<html lang="en">
 			<body className="antialiased">
 				<AuthSessionProvider>
-					<Navbar />
+					<Navbar accountEnabled={customerPortalMode() === "live"} />
 					{children}
 					<Toaster richColors position="bottom-right" />
 				</AuthSessionProvider>

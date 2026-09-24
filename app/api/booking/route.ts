@@ -5,6 +5,8 @@ import { Temporal } from "temporal-polyfill";
 import { buildAvailableSlots, type OpeningHour, type SalonClosure, type TimeInterval } from "@/lib/salon-availability";
 import { consumeRateLimit, isSameOriginRequest, rateLimitKey } from "@/lib/booking-security";
 import { sendBookingConfirmationEmail } from "@/lib/booking-confirmation-email";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { customerEmailAllowed, customerPortalMode, getCustomerAccount, CustomerAccountError } from "@/lib/customer-account";
 
 const TIME_ZONE = "Europe/Rome";
 const BOOKING_DAYS_AHEAD = 28;
@@ -223,6 +225,12 @@ export async function POST(request: NextRequest) {
 
 		const body = parseBookingInput(await readJsonBody(request));
 		if (!body) return jsonError("Dati della prenotazione non validi.", 400);
+		let account = null;
+		if (customerPortalMode() !== "off") {
+			const auth = await createSupabaseServerClient();
+			const { data: { user } } = await auth.auth.getUser();
+			if (user?.email_confirmed_at && user.email && customerEmailAllowed(user.email)) account = await getCustomerAccount();
+		}
 		if (!isStartFarEnoughInFuture(body.date, body.time)) return jsonError(`Prenota con almeno ${MINIMUM_NOTICE_MINUTES} minuti di anticipo.`, 400);
 
 		const suppliedRequestId = request.headers.get("idempotency-key");
@@ -242,13 +250,17 @@ export async function POST(request: NextRequest) {
 		const service = serviceResult.data;
 		const employee = employeeResult.data;
 
-		const [phoneLookup, emailLookup] = await Promise.all([
-			body.phone ? supabase.from("customers").select("id").eq("phone", body.phone).limit(1).maybeSingle() : Promise.resolve({ data: null, error: null }),
-			body.email ? supabase.from("customers").select("id").eq("email", body.email).limit(1).maybeSingle() : Promise.resolve({ data: null, error: null }),
-		]);
-		if (phoneLookup.error) throw phoneLookup.error;
-		if (emailLookup.error) throw emailLookup.error;
-		let customerId = (phoneLookup.data?.id ?? emailLookup.data?.id) as string | undefined;
+		let customerId: string | undefined = account?.id;
+		if (!customerId && body.email) {
+			const { data: matches, error } = await supabase.rpc("find_customer_email_matches", { p_email: body.email });
+			if (error) throw error;
+			if (matches?.length === 1) customerId = matches[0].id;
+		}
+		if (!customerId && !body.email) {
+			const { data, error } = await supabase.from("customers").select("id").eq("phone", body.phone).eq("is_active", true).limit(1).maybeSingle();
+			if (error) throw error;
+			customerId = data?.id;
+		}
 		if (!customerId) {
 			const { data, error } = await supabase.from("customers").insert({ name: body.name, phone: body.phone || null, email: body.email || null }).select("id").single();
 			if (error) throw error;
@@ -267,11 +279,12 @@ export async function POST(request: NextRequest) {
 			}
 			throw error;
 		}
-		if (body.email) {
+		const emailRecipient = account?.email ?? body.email;
+		if (emailRecipient) {
 			try {
 				await sendBookingConfirmationEmail({
-					to: body.email,
-					customerName: body.name,
+					to: emailRecipient,
+					customerName: account?.name ?? body.name,
 					serviceName: service.name,
 					employeeName: employee.name,
 					startTime: appointment.start_time,
@@ -285,6 +298,7 @@ export async function POST(request: NextRequest) {
 		}
 		return bookingSuccess(requestId, appointment, 201);
 	} catch (error) {
+		if (error instanceof CustomerAccountError) return jsonError(error.message, error.status);
 		if (error instanceof SyntaxError) return jsonError("JSON non valido.", 400);
 		if (error instanceof Error && error.message === "UNSUPPORTED_MEDIA_TYPE") return jsonError("Invia la richiesta come application/json.", 415);
 		if (error instanceof Error && error.message === "BODY_TOO_LARGE") return jsonError("Richiesta troppo grande.", 413);

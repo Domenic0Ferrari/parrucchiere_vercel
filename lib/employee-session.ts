@@ -59,7 +59,7 @@ async function signOutAndClearSession(supabase: SupabaseClient) {
 async function loadEmployeeProfile(
 	supabase: SupabaseClient,
 	authUserId: string
-): Promise<EmployeeProfile> {
+): Promise<EmployeeProfile | null> {
 	const { data: employee, error } = await supabase
 		.from("employees")
 		.select("id, auth_user_id, name, is_active, role")
@@ -71,7 +71,6 @@ async function loadEmployeeProfile(
 			authUserId,
 			error,
 		});
-		await signOutAndClearSession(supabase);
 		throw new AuthSessionError(
 			"Impossibile verificare il profilo dipendente.",
 			"UNKNOWN"
@@ -80,11 +79,7 @@ async function loadEmployeeProfile(
 
 	if (!employee) {
 		debugAuthSession("Employee profile not found", { authUserId });
-		await signOutAndClearSession(supabase);
-		throw new AuthSessionError(
-			"Il tuo account non è abilitato all'accesso.",
-			"ACCESS_DENIED"
-		);
+		return null;
 	}
 
 	if (employee.is_active !== true) {
@@ -92,7 +87,6 @@ async function loadEmployeeProfile(
 			authUserId,
 			employeeId: employee.id,
 		});
-		await signOutAndClearSession(supabase);
 		throw new AuthSessionError(
 			"Il tuo account è stato disattivato. Contatta l'amministratore.",
 			"INACTIVE_EMPLOYEE"
@@ -100,7 +94,6 @@ async function loadEmployeeProfile(
 	}
 
 	if (employee.role !== "staff" && employee.role !== "admin") {
-		await signOutAndClearSession(supabase);
 		throw new AuthSessionError(
 			"Il tuo account non è abilitato all'accesso.",
 			"ACCESS_DENIED"
@@ -120,14 +113,13 @@ export async function loadUserForSession(
 
 	try {
 		const employee = await loadEmployeeProfile(supabase, session.user.id);
-		return { auth: session.user, employee };
+		return employee ? { auth: session.user, employee } : null;
 	} catch (error) {
 		if (error instanceof AuthSessionError) {
 			throw error;
 		}
 
 		debugAuthSession("Unexpected error loading employee profile", error);
-		await signOutAndClearSession(supabase);
 		throw new AuthSessionError(
 			"Impossibile verificare il profilo dipendente.",
 			"UNKNOWN"

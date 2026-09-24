@@ -34,7 +34,7 @@ function getMobileMenuLinkClasses(pathname: string, href: string): string {
 		: "text-zinc-200 transition hover:text-white";
 }
 
-export default function Navbar() {
+export default function Navbar({ accountEnabled = false }: { accountEnabled?: boolean }) {
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [adminSidebarOpen, setAdminSidebarOpen] = useState(false);
 	const pathname = usePathname();
@@ -110,6 +110,7 @@ export default function Navbar() {
 									{item.label}
 								</Link>
 							))}
+							{accountEnabled ? <Link href="/account/bookings" className={getLinkClasses(pathname, "/account/bookings")}>Le mie prenotazioni</Link> : null}
 						</div>
 					)}
 					{isAdminRoute ? null : (
@@ -155,6 +156,7 @@ export default function Navbar() {
 										{item.label}
 									</Link>
 								))}
+								{accountEnabled ? <Link href="/account/bookings" onClick={() => setMenuOpen(false)} className="rounded-2xl px-4 py-4 text-2xl font-semibold text-white">Le mie prenotazioni</Link> : null}
 							</nav>
 							<Link href="/service" onClick={() => setMenuOpen(false)} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-zinc-900 shadow-lg transition hover:bg-zinc-100">Prenota</Link>
 						</div>
