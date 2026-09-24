@@ -162,6 +162,9 @@ Il file viene eseguito in una transazione e aggiunge:
 - vincolo di esclusione `appointments_no_scheduled_overlap`;
 - colonna nullable `appointments.booking_request_id uuid`;
 - indice univoco sulle chiavi idempotenti;
+- origine degli appuntamenti limitata a `online` (sito) e `portal` (addetti);
+- conversione delle origini storiche `public` in `online` e `admin`/`staff` in `portal`;
+- trigger di compatibilità che converte i vecchi valori durante il passaggio del codice pubblicato;
 - tabella privata `booking_rate_limits`;
 - funzione server-only `consume_booking_rate_limit`.
 
@@ -386,7 +389,7 @@ Non applicare ancora automaticamente questi cambiamenti: richiedono la verifica 
 
 1. Rendere `NOT NULL` nomi, date, stati, durata e chiavi esterne obbligatorie.
 2. Verificare o aggiungere foreign key per appuntamenti, categorie-servizi, orari e chiusure.
-3. Aggiungere check constraint per `status`, `appointment_source`, prezzi, durate e `day_of_week`.
+3. Verificare i check constraint per `status`, prezzi, durate e `day_of_week`.
 4. Verificare il vincolo unico `(salon_id, day_of_week)` su `salon_opening_hours`.
 5. Aggiungere indici per storico cliente e agenda per addetto/data.
 6. Decidere se `services.price int4` rappresenta euro interi oppure centesimi. Per prezzi come `19,90` conviene `numeric(10,2)` oppure centesimi interi con conversione esplicita nell'app.

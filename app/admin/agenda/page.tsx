@@ -1098,7 +1098,7 @@ export default function AdminAgendaPage() {
 				status: ACTIVE_APPOINTMENT_STATUS,
 				final_price: service?.price ?? null,
 				final_duration_minutes: durationMinutes,
-				appointment_source: "admin",
+				appointment_source: "portal",
 			};
 			if (notes.trim()) {
 				appointmentPayload.staff_note = notes.trim();
