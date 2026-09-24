@@ -795,7 +795,7 @@ export function SalonManagementPage({ section }: { section: SalonManagementSecti
 						</div>
 						<div
 							className={cn(
-								"grid grid-cols-1 gap-3 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
+								"grid grid-cols-2 gap-2",
 								closureForm.all_day && "hidden"
 							)}
 						>
@@ -964,7 +964,7 @@ function SalonDateTimeInput({
 }) {
 	const displayValue = value
 		? type === "date" ? value.split("-").reverse().join("/") : value.slice(0, 5)
-		: type === "date" ? "Seleziona data" : "Seleziona ora";
+		: type === "date" ? "Seleziona data" : "--:--";
 	const Icon = type === "date" ? CalendarDays : Clock3;
 
 	return (
@@ -972,13 +972,14 @@ function SalonDateTimeInput({
 			<div
 				aria-hidden="true"
 				className={cn(
-					"flex h-11 min-w-0 items-center justify-between gap-2 overflow-hidden rounded-lg border border-zinc-300 bg-white px-3 text-base text-zinc-900 shadow-sm md:hidden",
+					"flex h-11 min-w-0 items-center justify-between gap-1 overflow-hidden rounded-lg border border-zinc-300 bg-white px-3 text-base text-zinc-900 shadow-sm md:hidden",
+					type === "time" && "px-2",
 					!value && "text-zinc-500",
 					disabled && "bg-zinc-100 text-zinc-500"
 				)}
 			>
 				<span className="min-w-0 truncate">{displayValue}</span>
-				<Icon className="size-5 shrink-0 text-zinc-600" />
+				<Icon className={cn("shrink-0 text-zinc-600", type === "time" ? "size-4" : "size-5")} />
 			</div>
 			<Input
 				{...props}
@@ -1013,7 +1014,7 @@ function TimeRange({
 	return (
 		<div className="min-w-0">
 			<p className="mb-2 text-sm font-semibold text-zinc-900">{label}</p>
-			<div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+			<div className="grid grid-cols-2 gap-2">
 				<Field id={startId} label="Inizio">
 					<SalonDateTimeInput
 						id={startId}
