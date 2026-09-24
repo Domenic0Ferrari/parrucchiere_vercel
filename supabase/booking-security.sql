@@ -41,6 +41,13 @@ create unique index if not exists appointments_booking_request_id_uidx
   on public.appointments (booking_request_id)
   where booking_request_id is not null;
 
+-- La prenotazione dal sito usa l'origine "public". Conserva i valori storici.
+alter table public.appointments
+  drop constraint if exists appointments_source_check;
+alter table public.appointments
+  add constraint appointments_source_check
+  check (appointment_source in ('admin', 'staff', 'online', 'public'));
+
 -- Rate limit condiviso fra tutte le istanze serverless.
 create table if not exists public.booking_rate_limits (
   rate_key text primary key,
