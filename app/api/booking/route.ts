@@ -31,6 +31,24 @@ function jsonError(message: string, status: number, headers?: HeadersInit) {
 	return NextResponse.json({ error: message }, { status, headers });
 }
 
+type AppointmentSummary = {
+	final_price: number | string | null;
+	final_duration_minutes: number | null;
+	start_time: string;
+	end_time: string;
+};
+
+function bookingSuccess(requestId: string, appointment: AppointmentSummary, status = 200) {
+	return NextResponse.json({
+		ok: true,
+		requestId,
+		price: appointment.final_price,
+		durationMinutes: appointment.final_duration_minutes,
+		startTime: appointment.start_time,
+		endTime: appointment.end_time,
+	}, { status });
+}
+
 function bookingDate(value: string) {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("INVALID_DATE");
 	const date = Temporal.PlainDate.from(value);
@@ -208,9 +226,9 @@ export async function POST(request: NextRequest) {
 
 		const suppliedRequestId = request.headers.get("idempotency-key");
 		const requestId = suppliedRequestId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(suppliedRequestId) ? suppliedRequestId : randomUUID();
-		const { data: existing, error: existingError } = await supabase.from("appointments").select("id").eq("booking_request_id", requestId).maybeSingle();
+		const { data: existing, error: existingError } = await supabase.from("appointments").select("final_price, final_duration_minutes, start_time, end_time").eq("booking_request_id", requestId).maybeSingle();
 		if (existingError) throw existingError;
-		if (existing) return NextResponse.json({ ok: true, requestId });
+		if (existing) return bookingSuccess(requestId, existing);
 
 		const availability = await availableSlots(supabase, body.employeeId, body.serviceId, body.date);
 		if (!availability.availableSlots.includes(body.time)) return jsonError("Questo orario non è più disponibile.", 409);
@@ -233,16 +251,16 @@ export async function POST(request: NextRequest) {
 		const start = Temporal.PlainDateTime.from(`${body.date}T${body.time}`).toZonedDateTime(TIME_ZONE);
 		const duration = Number(service.duration);
 		const end = start.add({ minutes: duration });
-		const { error } = await supabase.from("appointments").insert({ customer_id: customerId, employee_id: body.employeeId, service_id: body.serviceId, start_time: start.toInstant().toString(), end_time: end.toInstant().toString(), status: "scheduled", final_price: service.price ?? null, final_duration_minutes: duration, appointment_source: "online", booking_request_id: requestId });
+		const { data: appointment, error } = await supabase.from("appointments").insert({ customer_id: customerId, employee_id: body.employeeId, service_id: body.serviceId, start_time: start.toInstant().toString(), end_time: end.toInstant().toString(), status: "scheduled", final_price: service.price ?? null, final_duration_minutes: duration, appointment_source: "online", booking_request_id: requestId }).select("final_price, final_duration_minutes, start_time, end_time").single();
 		if (error) {
 			if (error.code === "23P01") return jsonError("Questo orario è appena stato prenotato. Scegline un altro.", 409);
 			if (error.code === "23505") {
-				const { data: duplicate } = await supabase.from("appointments").select("id").eq("booking_request_id", requestId).maybeSingle();
-				if (duplicate) return NextResponse.json({ ok: true, requestId });
+				const { data: duplicate } = await supabase.from("appointments").select("final_price, final_duration_minutes, start_time, end_time").eq("booking_request_id", requestId).maybeSingle();
+				if (duplicate) return bookingSuccess(requestId, duplicate);
 			}
 			throw error;
 		}
-		return NextResponse.json({ ok: true, requestId }, { status: 201 });
+		return bookingSuccess(requestId, appointment, 201);
 	} catch (error) {
 		if (error instanceof SyntaxError) return jsonError("JSON non valido.", 400);
 		if (error instanceof Error && error.message === "UNSUPPORTED_MEDIA_TYPE") return jsonError("Invia la richiesta come application/json.", 415);

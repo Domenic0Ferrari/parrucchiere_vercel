@@ -1,12 +1,12 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoadingIndicator } from "@/components/ui/loading-indicator";
+import { BookingConfirmationCard, type BookingConfirmation } from "@/components/booking/booking-confirmation-card";
 
 type Service = { id: string; name: string; duration: number | null; categories: string[] };
 type Employee = { id: string; name: string };
@@ -58,7 +58,7 @@ function BookPageContent() {
 	const [email, setEmail] = useState("");
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
-	const [complete, setComplete] = useState(false);
+	const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
 	const [step, setStep] = useState<1 | 2 | 3>(1);
 	const dates = useMemo(() => {
 		const first = new Date(`${today()}T12:00:00Z`);
@@ -141,8 +141,20 @@ function BookPageContent() {
 		try {
 			bookingRequestIdRef.current ??= window.crypto.randomUUID();
 			const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": bookingRequestIdRef.current }, body: JSON.stringify({ serviceId, employeeId, date, time, name, phone, email }) });
-			const result = await response.json(); if (!response.ok) throw new Error(result.error);
-			setComplete(true);
+			const result = await response.json() as { error?: string; price?: number | string | null; durationMinutes?: number | null; startTime?: string; endTime?: string };
+			if (!response.ok) throw new Error(result.error ?? "Impossibile inviare la prenotazione.");
+			if (!result.startTime || !result.endTime) throw new Error("Prenotazione salvata, ma il riepilogo non è disponibile. Contatta il salone prima di riprovare.");
+			setConfirmation({
+				serviceName: services.find((service) => service.id === serviceId)?.name ?? "Servizio",
+				employeeName: employees.find((employee) => employee.id === employeeId)?.name ?? "Addetto",
+				startTime: result.startTime,
+				endTime: result.endTime,
+				durationMinutes: result.durationMinutes ?? null,
+				price: result.price ?? null,
+				customerName: name.trim(),
+				phone: phone.trim(),
+				email: email.trim().toLowerCase(),
+			});
 		} catch (error) { toast.error(error instanceof Error ? error.message : "Impossibile inviare la prenotazione."); }
 		finally { setSaving(false); }
 	}
@@ -187,7 +199,7 @@ function BookPageContent() {
 		});
 	}
 
-	if (complete) return <div className="min-h-[calc(100dvh-var(--navbar-height))] bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-xl px-4 py-20"><div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"><h1 className="text-2xl font-semibold">Prenotazione confermata</h1><p className="mt-2 text-zinc-600">Ti aspettiamo {formatDate(date)} alle {time}.</p><Link href="/" className="mt-5 inline-block rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">Torna alla home</Link></div></main></div>;
+	if (confirmation) return <BookingConfirmationCard booking={confirmation} />;
 
 	return <div className="min-h-[calc(100dvh-var(--navbar-height))] overflow-x-hidden bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16 md:py-8">
 		{loading ? <LoadingIndicator className="min-h-64" label="Caricamento disponibilità..." /> : <form ref={bookingFormRef} noValidate onSubmit={submit} className="scroll-mt-[calc(var(--navbar-height)+1rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-7">
