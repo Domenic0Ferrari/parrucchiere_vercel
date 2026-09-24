@@ -41,12 +41,42 @@ create unique index if not exists appointments_booking_request_id_uidx
   on public.appointments (booking_request_id)
   where booking_request_id is not null;
 
--- La prenotazione dal sito usa l'origine "public". Conserva i valori storici.
+-- Origini canoniche: online per il sito, portal per gli inserimenti degli addetti.
+-- Durante il passaggio del codice in produzione, normalizza anche i vecchi valori.
+create or replace function public.normalize_appointment_source()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.appointment_source in ('admin', 'staff') then
+    new.appointment_source := 'portal';
+  elsif new.appointment_source = 'public' then
+    new.appointment_source := 'online';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists normalize_appointment_source on public.appointments;
+create trigger normalize_appointment_source
+before insert or update of appointment_source on public.appointments
+for each row execute function public.normalize_appointment_source();
+
 alter table public.appointments
   drop constraint if exists appointments_source_check;
+update public.appointments
+set appointment_source = case
+  when appointment_source in ('admin', 'staff') then 'portal'
+  when appointment_source = 'public' then 'online'
+  else appointment_source
+end
+where appointment_source in ('admin', 'staff', 'public');
+alter table public.appointments
+  alter column appointment_source set default 'portal';
 alter table public.appointments
   add constraint appointments_source_check
-  check (appointment_source in ('admin', 'staff', 'online', 'public'));
+  check (appointment_source in ('online', 'portal'));
 
 -- Rate limit condiviso fra tutte le istanze serverless.
 create table if not exists public.booking_rate_limits (

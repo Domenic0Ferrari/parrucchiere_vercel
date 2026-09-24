@@ -167,6 +167,12 @@ function formatAppointmentStatus(value: string | null) {
 	return value;
 }
 
+function formatAppointmentSource(value: string | null) {
+	if (value === "online") return "Sito web";
+	if (value === "portal") return "Portale";
+	return value;
+}
+
 function DetailItem({ label, value }: { label: string; value: string | null }) {
 	return (
 		<div>
@@ -214,7 +220,7 @@ function CustomerSummaryCard({
 								}
 							/>
 							<DetailItem label="Prezzo finale" value={formatPrice(lastAppointment.finalPrice)} />
-							<DetailItem label="Origine" value={lastAppointment.appointmentSource} />
+							<DetailItem label="Origine" value={formatAppointmentSource(lastAppointment.appointmentSource)} />
 							<DetailItem label="Note cliente appuntamento" value={lastAppointment.clientNote} />
 							<DetailItem label="Note staff" value={lastAppointment.staffNote} />
 						</div>

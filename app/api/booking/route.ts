@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
 		const start = Temporal.PlainDateTime.from(`${body.date}T${body.time}`).toZonedDateTime(TIME_ZONE);
 		const duration = Number(service.duration);
 		const end = start.add({ minutes: duration });
-		const { error } = await supabase.from("appointments").insert({ customer_id: customerId, employee_id: body.employeeId, service_id: body.serviceId, start_time: start.toInstant().toString(), end_time: end.toInstant().toString(), status: "scheduled", final_price: service.price ?? null, final_duration_minutes: duration, appointment_source: "public", booking_request_id: requestId });
+		const { error } = await supabase.from("appointments").insert({ customer_id: customerId, employee_id: body.employeeId, service_id: body.serviceId, start_time: start.toInstant().toString(), end_time: end.toInstant().toString(), status: "scheduled", final_price: service.price ?? null, final_duration_minutes: duration, appointment_source: "online", booking_request_id: requestId });
 		if (error) {
 			if (error.code === "23P01") return jsonError("Questo orario è appena stato prenotato. Scegline un altro.", 409);
 			if (error.code === "23505") {

@@ -162,7 +162,9 @@ Il file viene eseguito in una transazione e aggiunge:
 - vincolo di esclusione `appointments_no_scheduled_overlap`;
 - colonna nullable `appointments.booking_request_id uuid`;
 - indice univoco sulle chiavi idempotenti;
-- vincolo `appointments_source_check` compatibile con le prenotazioni `public` dal sito;
+- origine degli appuntamenti limitata a `online` (sito) e `portal` (addetti);
+- conversione delle origini storiche `public` in `online` e `admin`/`staff` in `portal`;
+- trigger di compatibilità che converte i vecchi valori durante il passaggio del codice pubblicato;
 - tabella privata `booking_rate_limits`;
 - funzione server-only `consume_booking_rate_limit`.
 
