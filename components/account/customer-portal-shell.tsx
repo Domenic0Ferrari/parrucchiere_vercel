@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, History, LayoutDashboard, LogOut, Menu, X } from "lucide-react";
+import { CalendarDays, History, LayoutDashboard, LogOut, X } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,16 @@ export function CustomerPortalShell({ profile, children }: CustomerPortalShellPr
 	const pathname = usePathname();
 	const router = useRouter();
 	const [mobileOpen, setMobileOpen] = useState(false);
+
+	useEffect(() => {
+		const handleSidebarToggle = () => setMobileOpen((open) => !open);
+		window.addEventListener("customer-sidebar-toggle", handleSidebarToggle);
+		return () => window.removeEventListener("customer-sidebar-toggle", handleSidebarToggle);
+	}, []);
+
+	useEffect(() => {
+		window.dispatchEvent(new CustomEvent("customer-sidebar-state", { detail: { open: mobileOpen } }));
+	}, [mobileOpen]);
 
 	async function signOut() {
 		await getSupabaseBrowserClient().auth.signOut();
@@ -53,14 +63,6 @@ export function CustomerPortalShell({ profile, children }: CustomerPortalShellPr
 	return <div className="min-h-[calc(100dvh-var(--navbar-height))] bg-zinc-50 md:flex">
 		<div className="hidden w-64 shrink-0 border-r border-zinc-200 md:block">{sidebar}</div>
 		<div className="flex min-w-0 flex-1 flex-col">
-			<header className="flex min-h-16 items-center justify-between border-b border-zinc-200 bg-white px-4 md:hidden">
-				<p className="text-sm font-semibold text-zinc-900">Area clienti</p>
-				<button type="button" onClick={() => setMobileOpen(true)} aria-label="Apri menu area clienti" className="inline-flex size-10 items-center justify-center rounded-lg border border-zinc-300"><Menu className="size-5" /></button>
-			</header>
-			<nav className="grid grid-cols-3 border-b border-zinc-200 bg-white p-2 md:hidden" aria-label="Navigazione rapida area clienti">
-				{navigation.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={cn("flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium", pathname === href ? "bg-zinc-900 text-white" : "text-zinc-600")}><Icon className="size-4" />{label}</Link>)}
-				<button type="button" onClick={() => void signOut()} className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium text-zinc-600"><LogOut className="size-4" />Esci</button>
-			</nav>
 			<main className="flex-1 px-4 py-7 sm:px-6 sm:py-9 lg:px-10">{children}</main>
 		</div>
 		{mobileOpen ? <div className="fixed inset-0 z-[60] md:hidden"><button type="button" aria-label="Chiudi menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/30" /><div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] border-r border-zinc-200 bg-white shadow-xl"><button type="button" onClick={() => setMobileOpen(false)} aria-label="Chiudi menu area clienti" className="absolute right-3 top-3 inline-flex size-10 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100"><X className="size-5" /></button>{sidebar}</div></div> : null}

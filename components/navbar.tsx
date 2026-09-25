@@ -36,35 +36,38 @@ function getMobileMenuLinkClasses(pathname: string, href: string): string {
 
 export default function Navbar() {
 	const [menuOpen, setMenuOpen] = useState(false);
-	const [adminSidebarOpen, setAdminSidebarOpen] = useState(false);
+	const [portalSidebarOpen, setPortalSidebarOpen] = useState(false);
 	const pathname = usePathname();
 	const isAdminRoute = pathname.startsWith("/admin");
+	const isCustomerPortal = pathname === "/account/bookings" || pathname === "/account/history";
+	const isPortalRoute = isAdminRoute || isCustomerPortal;
+	const sidebarEventName = isAdminRoute ? "admin-sidebar" : "customer-sidebar";
 
 	useEffect(() => {
-		if (!isAdminRoute) return;
+		if (!isPortalRoute) return;
 
 		const handleSidebarState = (event: Event) => {
 			const customEvent = event as CustomEvent<{ open?: boolean }>;
-			setAdminSidebarOpen(Boolean(customEvent.detail?.open));
+			setPortalSidebarOpen(Boolean(customEvent.detail?.open));
 		};
 
-		window.addEventListener("admin-sidebar-state", handleSidebarState);
+		window.addEventListener(`${sidebarEventName}-state`, handleSidebarState);
 		return () => {
-			window.removeEventListener("admin-sidebar-state", handleSidebarState);
+			window.removeEventListener(`${sidebarEventName}-state`, handleSidebarState);
 		};
-	}, [isAdminRoute]);
+	}, [isPortalRoute, sidebarEventName]);
 
 	useEffect(() => {
-		if (isAdminRoute || !menuOpen) return;
+		if (isPortalRoute || !menuOpen) return;
 		const previousOverflow = document.body.style.overflow;
 		document.body.style.overflow = "hidden";
 		return () => {
 			document.body.style.overflow = previousOverflow;
 		};
-	}, [isAdminRoute, menuOpen]);
+	}, [isPortalRoute, menuOpen]);
 
-	const handleAdminSidebarToggle = () => {
-		window.dispatchEvent(new CustomEvent("admin-sidebar-toggle"));
+	const handlePortalSidebarToggle = () => {
+		window.dispatchEvent(new CustomEvent(`${sidebarEventName}-toggle`));
 	};
 
 	return (
@@ -74,7 +77,7 @@ export default function Navbar() {
 					className="flex h-full w-full items-center justify-between px-4 text-sm sm:px-6"
 				>
 					<Link
-						href={isAdminRoute ? "/admin/dashboard" : "/"}
+						href={isAdminRoute ? "/admin/dashboard" : isCustomerPortal ? "/account/bookings" : "/"}
 						className="flex items-center gap-2 font-semibold text-zinc-900"
 					>
 						<Image
@@ -85,21 +88,21 @@ export default function Navbar() {
 							className="size-9 object-contain"
 						/>
 					</Link>
-					{isAdminRoute ? (
+					{isPortalRoute ? (
 						<button
 							type="button"
 							className="inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white p-2 text-zinc-800 shadow-sm transition hover:bg-zinc-100"
-							aria-label={adminSidebarOpen ? "Chiudi sidebar" : "Apri sidebar"}
-							onClick={handleAdminSidebarToggle}
+							aria-label={portalSidebarOpen ? "Chiudi sidebar" : "Apri sidebar"}
+							onClick={handlePortalSidebarToggle}
 						>
-							{adminSidebarOpen ? (
+							{portalSidebarOpen ? (
 								<X className="h-4 w-4" />
 							) : (
 								<Menu className="h-4 w-4" />
 							)}
 						</button>
 					) : null}
-					{isAdminRoute ? null : (
+					{isPortalRoute ? null : (
 						<div className="hidden items-center gap-6 md:flex">
 							{navItems.map((item) => (
 								<Link
@@ -113,7 +116,7 @@ export default function Navbar() {
 							<Link href="/account/bookings" className={getLinkClasses(pathname, "/account/bookings")}>Area clienti</Link>
 						</div>
 					)}
-					{isAdminRoute ? null : (
+					{isPortalRoute ? null : (
 						<button
 							type="button"
 							className="inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white p-2 text-zinc-800 shadow-sm transition hover:bg-zinc-100 md:hidden"
@@ -130,7 +133,7 @@ export default function Navbar() {
 					)}
 					</nav>
 				</div>
-				{!isAdminRoute && menuOpen ? (
+				{!isPortalRoute && menuOpen ? (
 					<div className="fixed inset-0 z-[9999] bg-brand text-white md:hidden">
 						<div className="mobile-menu-enter flex min-h-[100dvh] flex-col px-6 py-6">
 							<div className="flex items-center justify-between">
