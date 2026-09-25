@@ -39,7 +39,8 @@ export default function Navbar() {
 	const [portalSidebarOpen, setPortalSidebarOpen] = useState(false);
 	const pathname = usePathname();
 	const isAdminRoute = pathname.startsWith("/admin");
-	const isCustomerPortal = pathname === "/account/bookings" || pathname === "/account/history";
+	const isCustomerBooking = pathname === "/book" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "account";
+	const isCustomerPortal = pathname === "/account/bookings" || pathname === "/account/history" || isCustomerBooking;
 	const isPortalRoute = isAdminRoute || isCustomerPortal;
 	const sidebarEventName = isAdminRoute ? "admin-sidebar" : "customer-sidebar";
 

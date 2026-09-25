@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoadingIndicator } from "@/components/ui/loading-indicator";
 import { BookingConfirmationCard, type BookingConfirmation } from "@/components/booking/booking-confirmation-card";
+import { CustomerPortalShell } from "@/components/account/customer-portal-shell";
 
 type Service = { id: string; name: string; duration: number | null; categories: string[] };
 type Employee = { id: string; name: string };
@@ -59,6 +60,7 @@ function BookPageContent() {
 	const [phone, setPhone] = useState("");
 	const [email, setEmail] = useState("");
 	const [accountLinked, setAccountLinked] = useState(false);
+	const [accountProfile, setAccountProfile] = useState<{ name: string; email: string } | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
@@ -85,7 +87,7 @@ function BookPageContent() {
 			if (!response.ok) return;
 			const data = await response.json() as { customer?: { name: string; email: string; phone: string | null } };
 			if (!data.customer) return;
-			setName(data.customer.name); setEmail(data.customer.email); setPhone(data.customer.phone ?? ""); setAccountLinked(true);
+			setName(data.customer.name); setEmail(data.customer.email); setPhone(data.customer.phone ?? ""); setAccountProfile({ name: data.customer.name, email: data.customer.email }); setAccountLinked(true);
 		}).catch(() => {});
 	}, []);
 
@@ -211,9 +213,12 @@ function BookPageContent() {
 		});
 	}
 
-	if (confirmation) return <BookingConfirmationCard booking={confirmation} />;
+	if (confirmation) {
+		const confirmationCard = <BookingConfirmationCard booking={confirmation} />;
+		return fromAccount ? <CustomerPortalShell profile={accountProfile}>{confirmationCard}</CustomerPortalShell> : confirmationCard;
+	}
 
-	return <div className="min-h-[calc(100dvh-var(--navbar-height))] overflow-x-hidden bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16 md:py-8">
+	const bookingPage = <div className="min-h-[calc(100dvh-var(--navbar-height))] overflow-x-hidden bg-zinc-50 text-zinc-900"><main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-16 md:py-8">
 		{fromAccount ? <div className="mb-5 flex justify-end"><Link href="/account/bookings" aria-label="Torna alla mia area clienti" className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-100 hover:text-brand focus:outline-none focus:ring-2 focus:ring-brand/35"><ArrowLeft aria-hidden="true" className="size-5" /></Link></div> : null}
 		{loading ? <LoadingIndicator className="min-h-64" label="Caricamento disponibilità..." /> : <form ref={bookingFormRef} noValidate onSubmit={submit} className="scroll-mt-[calc(var(--navbar-height)+1rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-7">
 			<div className="mb-6 grid grid-cols-3 gap-1.5 sm:mb-7 sm:gap-2" aria-label="Avanzamento prenotazione">
@@ -230,6 +235,8 @@ function BookPageContent() {
 		</form>}
 		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #DED9D2; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#242827; background:#FFFEFC; } .input-error { border-color:#587983; background:color-mix(in srgb, #587983 10%, #F7F3ED); }`}</style>
 	</main></div>;
+
+	return fromAccount ? <CustomerPortalShell profile={accountProfile}>{bookingPage}</CustomerPortalShell> : bookingPage;
 }
 
 function BookingPageFallback() {

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 		const durationOverride = sameService && Number.isSafeInteger(appointment.final_duration_minutes) && appointment.final_duration_minutes > 0
 			? appointment.final_duration_minutes : undefined;
 		const availability = await customerAvailableSlots({ appointmentId: id, serviceId: input.serviceId, employeeId: input.employeeId, date: input.date, durationOverride });
-		return NextResponse.json({ slots: availability?.slots ?? [] }, { headers: { "Cache-Control": "no-store" } });
+		return NextResponse.json({ slots: availability?.slots ?? [], closed: availability?.closed ?? false }, { headers: { "Cache-Control": "no-store" } });
 	} catch (error) {
 		if (error instanceof CustomerAccountError) return NextResponse.json({ error: error.message }, { status: error.status });
 		console.error("Customer booking slots error:", error);

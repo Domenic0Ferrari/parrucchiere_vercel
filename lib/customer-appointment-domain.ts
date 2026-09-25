@@ -53,6 +53,8 @@ export async function customerAvailableSlots(input: { appointmentId: string; ser
 	]) : [{ data: [], error: null }, { data: [], error: null }];
 	if (hours.error) throw hours.error;
 	if (closures.error) throw closures.error;
+	const closed = !(hours.data ?? []).some((hour) => hour.day_of_week === date.dayOfWeek && hour.is_open)
+		|| (closures.data ?? []).some((closure) => closure.all_day && input.date >= closure.start_date && input.date <= closure.end_date);
 	const busyIntervals = (appointments.data ?? []).filter((row) => row.id !== input.appointmentId).map((row) => ({
 		start: Temporal.Instant.from(row.start_time).toZonedDateTimeISO(CUSTOMER_TIME_ZONE).toPlainTime().toString({ smallestUnit: "minute" }),
 		end: Temporal.Instant.from(row.end_time).toZonedDateTimeISO(CUSTOMER_TIME_ZONE).toPlainTime().toString({ smallestUnit: "minute" }),
@@ -63,5 +65,5 @@ export async function customerAvailableSlots(input: { appointmentId: string; ser
 		const start = Temporal.PlainDateTime.from(`${input.date}T${time}`).toZonedDateTime(CUSTOMER_TIME_ZONE).toInstant();
 		return Temporal.Instant.compare(start, changeCutoff()) >= 0;
 	}));
-	return { service: service.data, employee: employee.data, duration, slots: allSlots.map((time) => ({ time, disabled: !available.has(time) })), available };
+	return { service: service.data, employee: employee.data, duration, closed, slots: allSlots.map((time) => ({ time, disabled: !available.has(time) })), available };
 }
