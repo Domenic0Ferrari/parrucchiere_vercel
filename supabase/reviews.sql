@@ -59,8 +59,6 @@ drop policy if exists "Admins read all reviews" on public.reviews;
 create policy "Admins read all reviews" on public.reviews
 for select to authenticated using ((select public.is_active_review_admin()));
 drop policy if exists "Submit pending reviews" on public.reviews;
-create policy "Submit pending reviews" on public.reviews
-for insert to anon, authenticated with check (status = 'pending' and moderated_at is null and moderated_by is null);
 drop policy if exists "Admins moderate pending reviews" on public.reviews;
 create policy "Admins moderate pending reviews" on public.reviews
 for update to authenticated
@@ -69,5 +67,4 @@ with check (status in ('approved', 'rejected') and (select public.is_active_revi
 
 revoke all on public.reviews from anon, authenticated;
 grant select (id, author_name, rating, comment, status, created_at, moderated_at) on public.reviews to anon, authenticated;
-grant insert (author_name, rating, comment) on public.reviews to anon, authenticated;
 grant update (status) on public.reviews to authenticated;

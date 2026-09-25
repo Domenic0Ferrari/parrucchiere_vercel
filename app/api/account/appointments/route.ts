@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 		let query = db.from("appointments")
 			.select("id, service_id, employee_id, start_time, end_time, status, final_price, final_duration_minutes, appointment_source")
 			.eq("customer_id", customer.id);
-		if (scope === "history") query = query.lt("start_time", new Date().toISOString());
+		if (scope === "history") query = query.or(`start_time.lt.${new Date().toISOString()},status.eq.cancelled`);
 		else query = query.eq("status", "scheduled").gte("start_time", new Date().toISOString());
 		if (year) query = query.gte("start_time", `${year}-01-01T00:00:00.000Z`).lt("start_time", `${year + 1}-01-01T00:00:00.000Z`);
 		const { data, error } = await query.order("start_time", { ascending: false }).range(page * 20, page * 20 + 20);

@@ -178,9 +178,10 @@ Poiché `reviews` non compare nello schema consegnato, esegui:
 
 ```text
 supabase/reviews.sql
+supabase/reviews-turnstile.sql
 ```
 
-Questa migrazione crea tabella, controlli, moderazione, privilegi e policy delle recensioni. Verifica poi che soltanto un dipendente con `role = 'admin'` possa approvare o rifiutare.
+La prima migrazione crea tabella, controlli, moderazione, privilegi e policy delle recensioni; la seconda blocca l'inserimento diretto dal browser, che altrimenti aggirerebbe Turnstile e rate limit. Configura anche `NEXT_PUBLIC_TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` negli ambienti Vercel: la chiave segreta resta solo server-side. Verifica poi che soltanto un dipendente con `role = 'admin'` possa approvare o rifiutare.
 
 ### 2.4 File già applicati
 
@@ -306,7 +307,7 @@ Se la funzione di rate limit non è installata, in produzione l'API risponde int
 3. Correggi eventuali sovrapposizioni o dati incoerenti.
 4. Esegui `supabase/core-rls.sql`.
 5. Esegui `supabase/booking-security.sql`.
-6. Esegui `supabase/reviews.sql`.
+6. Esegui `supabase/reviews.sql` e `supabase/reviews-turnstile.sql`.
 7. Esegui le query di verifica del punto 3.
 8. Configura le quattro variabili Vercel del punto 4.
 9. Pubblica il nuovo deploy.
