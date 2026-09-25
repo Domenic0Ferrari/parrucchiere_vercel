@@ -52,7 +52,11 @@ export function BookingConfirmationCard({ booking }: { booking: BookingConfirmat
 					</section>
 					<div className="grid grid-cols-2 gap-3 rounded-xl bg-zinc-50 p-4 sm:gap-6"><div><p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Durata</p><p className="mt-1 text-base font-semibold">{durationLabel(booking.durationMinutes)}</p></div><div><p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Prezzo</p><p className="mt-1 text-base font-semibold">{priceLabel(booking.price)}</p></div></div>
 					<section aria-label="Contatti della prenotazione" className="border-t border-zinc-200 pt-5"><h2 className="text-sm font-semibold">Prenotazione per {booking.customerName}</h2><div className="mt-2 space-y-1 text-sm text-zinc-600">{booking.phone && <p>Telefono: {booking.phone}</p>}{booking.email && <p className="break-all">Email: {booking.email}</p>}</div></section>
-					<Link href="/" className="flex min-h-12 items-center justify-center rounded-xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800">Torna alla home</Link>
+					<div className="grid gap-3 sm:grid-cols-2">
+						<Link href="/account/bookings" className="flex min-h-12 items-center justify-center rounded-xl bg-zinc-900 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-zinc-800">Vai alla tua area clienti</Link>
+						<Link href="/" className="flex min-h-12 items-center justify-center rounded-xl border border-zinc-300 px-5 py-3 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50">Torna alla home</Link>
+					</div>
+					<p className="text-center text-xs leading-5 text-zinc-500">Dall&apos;area clienti puoi modificare o annullare l&apos;appuntamento fino a 24 ore prima.</p>
 				</div>
 			</div>
 		</main>

@@ -6,10 +6,17 @@ export async function GET(request: NextRequest) {
 	try {
 		const customer = await getCustomerAccount();
 		const page = Math.max(0, Math.min(100, Number.parseInt(request.nextUrl.searchParams.get("page") ?? "0", 10) || 0));
+		const scope = request.nextUrl.searchParams.get("scope") === "history" ? "history" : "upcoming";
+		const requestedYear = Number.parseInt(request.nextUrl.searchParams.get("year") ?? "", 10);
+		const year = Number.isInteger(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100 ? requestedYear : null;
 		const db = serviceClient();
-		const { data, error } = await db.from("appointments")
+		let query = db.from("appointments")
 			.select("id, service_id, employee_id, start_time, end_time, status, final_price, final_duration_minutes, appointment_source")
-			.eq("customer_id", customer.id).order("start_time", { ascending: false }).range(page * 20, page * 20 + 20);
+			.eq("customer_id", customer.id);
+		if (scope === "history") query = query.lt("start_time", new Date().toISOString());
+		else query = query.eq("status", "scheduled").gte("start_time", new Date().toISOString());
+		if (year) query = query.gte("start_time", `${year}-01-01T00:00:00.000Z`).lt("start_time", `${year + 1}-01-01T00:00:00.000Z`);
+		const { data, error } = await query.order("start_time", { ascending: false }).range(page * 20, page * 20 + 20);
 		if (error) throw error;
 		const rows = data ?? [];
 		const serviceIds = [...new Set(rows.map((row) => String(row.service_id)))];
@@ -32,6 +39,8 @@ export async function GET(request: NextRequest) {
 				canChange: canCustomerChange(row.start_time, row.status),
 			})),
 			hasMore: rows.length > 20,
+			scope,
+			year,
 		}, { headers: { "Cache-Control": "no-store" } });
 	} catch (error) {
 		if (error instanceof CustomerAccountError) return NextResponse.json({ error: error.message }, { status: error.status });
