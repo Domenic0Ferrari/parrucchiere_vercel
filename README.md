@@ -3,19 +3,10 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ## Recensioni
 
 1. Configura `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` e nell'ambiente Vercel.
-2. Esegui `supabase/reviews.sql` e poi `supabase/reviews-turnstile.sql` nel SQL Editor del progetto Supabase **prima** di pubblicare le nuove pagine. I file creano tabella, vincoli, indice, trigger, permessi e policy RLS e disabilitano l'inserimento diretto dal browser.
+2. Esegui `supabase/reviews.sql` e poi `supabase/reviews-api.sql` nel SQL Editor del progetto Supabase **prima** di pubblicare le nuove pagine. I file creano tabella, vincoli, indice, trigger, permessi e policy RLS e disabilitano l'inserimento diretto dal browser.
 3. Verifica che `public.employees` abbia le colonne `auth_user_id`, `is_active` e `role`, e che l'account moderatore abbia `role = 'admin'` e `is_active = true`.
 
-Il visitatore invia una recensione da `/reviews/new`. L'API verifica Turnstile, applica un limite di tre invii ogni dieci minuti per indirizzo e crea la recensione con stato `pending`; il visitatore non può leggerla o modificarla dopo l'invio. Un admin la approva o la rifiuta in `/admin/reviews`. Solo le recensioni approvate appaiono nella home e in `/reviews`. Il trigger registra data e utente della moderazione. Le regole sono nel database: nascondere il link admin nell'interfaccia non sostituisce le policy RLS.
-
-Configura su Vercel e in `.env.local`:
-
-```text
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=<site key pubblica Cloudflare>
-TURNSTILE_SECRET_KEY=<secret key privata Cloudflare>
-```
-
-La chiave segreta non deve mai avere il prefisso `NEXT_PUBLIC_`. Dopo aver inserito la site key pubblica serve un nuovo deploy perché viene inclusa nel client.
+Il visitatore invia una recensione da `/reviews/new`. L'API applica un limite di tre invii ogni dieci minuti per indirizzo e crea la recensione con stato `pending`; il visitatore non può leggerla o modificarla dopo l'invio. Un admin la approva o la rifiuta in `/admin/reviews`. Solo le recensioni approvate appaiono nella home e in `/reviews`. Il trigger registra data e utente della moderazione. Le regole sono nel database: nascondere il link admin nell'interfaccia non sostituisce le policy RLS.
 
 Controllo consigliato dopo la migrazione: invia una recensione senza accesso, verifica che non appaia nella pagina pubblica, approvala con un account admin e verifica che appaia; prova anche il rifiuto e un accesso con dipendente non admin.
 

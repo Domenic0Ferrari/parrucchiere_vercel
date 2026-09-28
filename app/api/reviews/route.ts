@@ -4,7 +4,7 @@ import { consumeRateLimit, isSameOriginRequest, rateLimitKey } from "@/lib/booki
 
 const MAX_BODY_BYTES = 8_192;
 
-type ReviewInput = { name: string; rating: number; comment: string; turnstileToken: string };
+type ReviewInput = { name: string; rating: number; comment: string };
 
 function serviceClient() {
 	const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,26 +32,8 @@ function parseInput(body: unknown): ReviewInput | null {
 	const name = typeof data.name === "string" ? data.name.trim() : "";
 	const comment = typeof data.comment === "string" ? data.comment.trim() : "";
 	const rating = data.rating;
-	const turnstileToken = typeof data.turnstileToken === "string" ? data.turnstileToken.trim() : "";
-	if (name.length < 2 || name.length > 80 || comment.length < 10 || comment.length > 2_000 || typeof rating !== "number" || !Number.isInteger(rating) || rating < 1 || rating > 5 || !turnstileToken) return null;
-	return { name, rating, comment, turnstileToken };
-}
-
-async function verifyTurnstile(token: string) {
-	const secret = process.env.TURNSTILE_SECRET_KEY;
-	if (!secret) return "unconfigured" as const;
-	try {
-		const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-			method: "POST",
-			headers: { "Content-Type": "application/x-www-form-urlencoded" },
-			body: new URLSearchParams({ secret, response: token }).toString(),
-			cache: "no-store",
-		});
-		const result = await response.json() as { success?: unknown };
-		return result.success === true ? "valid" as const : "invalid" as const;
-	} catch {
-		return "unavailable" as const;
-	}
+	if (name.length < 2 || name.length > 80 || comment.length < 10 || comment.length > 2_000 || typeof rating !== "number" || !Number.isInteger(rating) || rating < 1 || rating > 5) return null;
+	return { name, rating, comment };
 }
 
 export async function POST(request: NextRequest) {
@@ -64,11 +46,6 @@ export async function POST(request: NextRequest) {
 		const rateLimit = await consumeRateLimit(db, rateLimitKey(request, "reviews"), 3, 10 * 60);
 		if (rateLimit === "blocked") return jsonError("Hai inviato troppe recensioni. Riprova più tardi.", 429, { "Retry-After": "600" });
 		if (rateLimit === "unavailable") return jsonError("Invio recensioni temporaneamente non disponibile.", 503, { "Retry-After": "30" });
-
-		const turnstile = await verifyTurnstile(input.turnstileToken);
-		if (turnstile === "unconfigured") return jsonError("Protezione recensioni non configurata.", 503);
-		if (turnstile === "unavailable") return jsonError("Impossibile verificare la protezione. Riprova tra poco.", 503);
-		if (turnstile === "invalid") return jsonError("Verifica di sicurezza non valida. Riprova.", 400);
 
 		const { error } = await db.from("reviews").insert({ author_name: input.name, rating: input.rating, comment: input.comment });
 		if (error) throw error;
