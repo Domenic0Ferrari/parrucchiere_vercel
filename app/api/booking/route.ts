@@ -12,6 +12,7 @@ const TIME_ZONE = "Europe/Rome";
 const BOOKING_DAYS_AHEAD = 28;
 const MINIMUM_NOTICE_MINUTES = 30;
 const MAX_BODY_BYTES = 8_192;
+const PRIVACY_POLICY_VERSION = "2026-10-02";
 
 type BookingInput = {
 	serviceId: string;
@@ -21,6 +22,7 @@ type BookingInput = {
 	name: string;
 	phone: string;
 	email: string;
+	privacyAccepted: boolean;
 };
 
 function client() {
@@ -97,14 +99,15 @@ function parseBookingInput(value: unknown): BookingInput | null {
 	const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 	const date = typeof body.date === "string" ? body.date : "";
 	const time = typeof body.time === "string" ? body.time : "";
+	const privacyAccepted = body.privacyAccepted === true;
 
-	if (!serviceId || !employeeId || !name || name.length < 2) return null;
+	if (!serviceId || !employeeId || !name || name.length < 2 || !privacyAccepted) return null;
 	if (!/^\d{2}:\d{2}$/.test(time) || !isDateInsideBookingWindow(date)) return null;
 	if (phone && (phone.length < 6 || phone.length > 30 || !/^[+\d][\d\s()./-]*$/.test(phone))) return null;
 	if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return null;
 	if (!phone && !email) return null;
 
-	return { serviceId, employeeId, date, time, name, phone, email };
+	return { serviceId, employeeId, date, time, name, phone, email, privacyAccepted };
 }
 
 async function readJsonBody(request: NextRequest) {
@@ -270,7 +273,7 @@ export async function POST(request: NextRequest) {
 		const start = Temporal.PlainDateTime.from(`${body.date}T${body.time}`).toZonedDateTime(TIME_ZONE);
 		const duration = Number(service.duration);
 		const end = start.add({ minutes: duration });
-		const { data: appointment, error } = await supabase.from("appointments").insert({ customer_id: customerId, employee_id: body.employeeId, service_id: body.serviceId, start_time: start.toInstant().toString(), end_time: end.toInstant().toString(), status: "scheduled", final_price: service.price ?? null, final_duration_minutes: duration, appointment_source: "online", booking_request_id: requestId }).select("final_price, final_duration_minutes, start_time, end_time").single();
+		const { data: appointment, error } = await supabase.from("appointments").insert({ customer_id: customerId, employee_id: body.employeeId, service_id: body.serviceId, start_time: start.toInstant().toString(), end_time: end.toInstant().toString(), status: "scheduled", final_price: service.price ?? null, final_duration_minutes: duration, appointment_source: "online", booking_request_id: requestId, privacy_accepted_at: new Date().toISOString(), privacy_policy_version: PRIVACY_POLICY_VERSION, privacy_retention_until: start.toPlainDate().add({ months: 24 }).toString() }).select("final_price, final_duration_minutes, start_time, end_time").single();
 		if (error) {
 			if (error.code === "23P01") return jsonError("Questo orario è appena stato prenotato. Scegline un altro.", 409);
 			if (error.code === "23505") {

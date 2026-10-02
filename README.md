@@ -34,6 +34,25 @@ Le prenotazioni online con un indirizzo email inviano un riepilogo tramite l'API
 
 In assenza della chiave, del mittente o di una modalità esplicita, la prenotazione continua a funzionare senza inviare email. Un errore di invio non annulla una prenotazione già salvata; i retry della stessa richiesta non inviano una seconda email. Prima di impostare `BREVO_EMAIL_MODE=live`, verifica il dominio mittente in Brevo e prova una prenotazione con un indirizzo controllato da te.
 
+## Privacy e conservazione dei dati
+
+Esegui `supabase/privacy.sql` nel SQL Editor di Supabase prima di pubblicare questa versione. La prenotazione richiede la presa visione dell'informativa in `/privacy`; l'API registra nell'appuntamento il momento, la versione dell'informativa e la data di revisione della conservazione, impostata a 24 mesi dalla data dell'appuntamento.
+
+La data non cancella automaticamente record: il salone deve verificare prima eventuali obblighi contabili o legali e gestire le richieste degli interessati. Completa i recapiti del titolare nella pagina Contatti e fai validare il testo dell'informativa in base alle attività effettive del salone prima dell'uso pubblico.
+
+## Reminder appuntamenti
+
+Esegui `supabase/appointment-reminders.sql` nel SQL Editor di Supabase. Il progetto include un cron Vercel protetto in `vercel.json`: ogni giorno alle 08:00 UTC cerca gli appuntamenti programmati per il giorno successivo e invia un promemoria una sola volta, registrando l'invio nel database.
+
+Per testarlo in Vercel configura solo variabili server, mai `NEXT_PUBLIC_`:
+
+- `BREVO_API_KEY` e `BREVO_SENDER_EMAIL` già usate dalle email di prenotazione;
+- `BREVO_EMAIL_MODE=test` e `BREVO_TEST_RECIPIENT=tuoindirizzo@example.com`;
+- `REMINDER_EMAIL_MODE=test` (facoltativa: se assente usa `BREVO_EMAIL_MODE`);
+- `CRON_SECRET`: stringa casuale di almeno 16 caratteri.
+
+In test tutti i reminder arrivano a `BREVO_TEST_RECIPIENT`, con oggetto `[TEST]`; il destinatario previsto è indicato nel testo. Vercel esegue i cron solo sulla produzione. Sul piano Hobby è consentita una sola esecuzione quotidiana e la puntualità può variare fino a un'ora: il reminder è quindi per gli appuntamenti del giorno dopo, non esattamente 24 ore prima. Per una cadenza precisa serve Vercel Pro o un servizio di scheduling esterno.
+
 ## Sessione amministrativa
 
 La sessione Supabase è salvata in cookie e aggiornata da `proxy.ts`, così può essere verificata anche nei Server Component. Il layout `/admin` verifica sul server sia il token sia l'esistenza di un dipendente attivo; le policy RLS del database restano comunque obbligatorie per autorizzare ogni lettura e modifica.

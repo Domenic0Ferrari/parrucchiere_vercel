@@ -44,9 +44,9 @@ export function AccountAuthForm({ mode }: { mode: "login" | "register" }) {
 		<p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Area clienti</p>
 		<h2 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h2><p className="mt-2 text-sm leading-6 text-zinc-600">{subtitle}</p>
 		<form onSubmit={submit} className="mt-7 space-y-4">
-			{mode === "register" && !recovery ? <label className="block text-sm font-medium">Nome e cognome<input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border border-zinc-300 px-3" /></label> : null}
-			<label className="block text-sm font-medium">Email<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border border-zinc-300 px-3" /></label>
-			{!recovery ? <label className="block text-sm font-medium">Password<input required minLength={mode === "register" ? 8 : undefined} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border border-zinc-300 px-3" /></label> : null}
+			{mode === "register" && !recovery ? <label className="block text-sm font-medium">Nome e cognome<input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} className="app-input mt-1" /></label> : null}
+			<label className="block text-sm font-medium">Email<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="app-input mt-1" /></label>
+			{!recovery ? <label className="block text-sm font-medium">Password<input required minLength={mode === "register" ? 8 : undefined} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className="app-input mt-1" /></label> : null}
 			<button disabled={busy} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50">{busy ? "Attendi..." : recovery ? "Invia il link" : mode === "register" ? "Crea account" : "Accedi"}<ArrowRight className="size-4" /></button>
 		</form>
 		{message ? <p role="status" className="mt-4 text-sm text-zinc-700">{message}</p> : null}

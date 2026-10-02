@@ -59,6 +59,7 @@ function BookPageContent() {
 	const shouldScrollToStepRef = useRef(false);
 	const [phone, setPhone] = useState("");
 	const [email, setEmail] = useState("");
+	const [privacyAccepted, setPrivacyAccepted] = useState(false);
 	const [accountLinked, setAccountLinked] = useState(false);
 	const [accountProfile, setAccountProfile] = useState<{ name: string; email: string } | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -151,10 +152,14 @@ function BookPageContent() {
 			toast.error("Inserisci almeno telefono o email.");
 			return;
 		}
+		if (!privacyAccepted) {
+			toast.error("Leggi e conferma l'informativa privacy per continuare.");
+			return;
+		}
 		setSaving(true);
 		try {
 			bookingRequestIdRef.current ??= window.crypto.randomUUID();
-			const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": bookingRequestIdRef.current }, body: JSON.stringify({ serviceId, employeeId, date, time, name, phone, email }) });
+			const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": bookingRequestIdRef.current }, body: JSON.stringify({ serviceId, employeeId, date, time, name, phone, email, privacyAccepted }) });
 			const result = await response.json() as { error?: string; price?: number | string | null; durationMinutes?: number | null; startTime?: string; endTime?: string };
 			if (!response.ok) throw new Error(result.error ?? "Impossibile inviare la prenotazione.");
 			if (!result.startTime || !result.endTime) throw new Error("Prenotazione salvata, ma il riepilogo non è disponibile. Contatta il salone prima di riprovare.");
@@ -231,9 +236,8 @@ function BookPageContent() {
 				<button type="button" onClick={goToTimes} className="min-h-12 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button>
 			</div> : null}
 			{step === 2 ? <div className="grid gap-6"><Field label="Orario">{slotsLoading ? <LoadingIndicator className="min-h-32 rounded-xl border border-zinc-200 bg-zinc-50" label="Caricamento orari disponibili..." /> : <><div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">{slots.map((item) => <button key={item.time} type="button" disabled={item.disabled} aria-pressed={time === item.time} onClick={() => selectTime(item.time)} className={`min-h-11 rounded-xl border px-2 py-2 text-sm font-semibold ${time === item.time ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"} ${item.disabled ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400 hover:bg-zinc-100" : ""}`}>{item.time}</button>)}</div>{slots.length === 0 && <p className="text-sm text-zinc-600">Nessun orario disponibile in questo giorno.</p>}</>}</Field><div className="flex gap-3"><button type="button" onClick={() => changeStep(1)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button ref={continueToDetailsRef} type="button" onClick={goToDetails} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Continua</button></div></div> : null}
-			{step === 3 ? <div className="grid gap-6"><div className="grid gap-4 sm:grid-cols-2"><Field label="Nome e cognome"><input value={name} readOnly={accountLinked} aria-invalid={nameError} onChange={(event) => setName(event.target.value)} className={`input ${nameError ? "input-error" : ""}`} /></Field><Field label="Telefono"><input value={phone} readOnly={accountLinked} onChange={(event) => setPhone(event.target.value)} className="input" /></Field><Field label="Email"><input type="email" value={email} readOnly={accountLinked} onChange={(event) => setEmail(event.target.value)} className="input" /></Field></div><p className="text-xs leading-relaxed text-zinc-500">{accountLinked ? "Questa prenotazione sarà collegata al tuo account." : "Inserisci telefono o email per completare la prenotazione."}</p><div className="flex gap-3"><button type="button" onClick={() => changeStep(2)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button disabled={saving} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma"}</button></div></div> : null}
+			{step === 3 ? <div className="grid gap-6"><div className="grid gap-4 sm:grid-cols-2"><Field label="Nome e cognome"><input value={name} readOnly={accountLinked} aria-invalid={nameError} onChange={(event) => setName(event.target.value)} className={`app-input ${nameError ? "app-input--error" : ""}`} /></Field><Field label="Telefono"><input value={phone} readOnly={accountLinked} onChange={(event) => setPhone(event.target.value)} className="app-input" /></Field><Field label="Email"><input type="email" value={email} readOnly={accountLinked} onChange={(event) => setEmail(event.target.value)} className="app-input" /></Field></div><p className="text-xs leading-relaxed text-zinc-500">{accountLinked ? "Questa prenotazione sarà collegata al tuo account." : "Inserisci telefono o email per completare la prenotazione."}</p><label className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm leading-5 text-zinc-700"><input type="checkbox" checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-brand" /><span>Ho letto l&apos;<Link href="/privacy" target="_blank" className="font-semibold text-brand underline underline-offset-2">informativa privacy</Link> e confermo il trattamento dei dati necessario per gestire questa prenotazione.</span></label><div className="flex gap-3"><button type="button" onClick={() => changeStep(2)} className="min-h-12 flex-1 rounded-xl border border-zinc-300 px-4 py-3 text-sm font-semibold text-zinc-800">Indietro</button><button disabled={saving} className="min-h-12 flex-1 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-zinc-300">{saving ? "Invio..." : "Conferma"}</button></div></div> : null}
 		</form>}
-		<style jsx>{`.input { box-sizing:border-box; width:100%; max-width:100%; min-height:2.75rem; border:1px solid #DED9D2; border-radius:.75rem; padding:.6rem .75rem; font-size:1rem; color:#242827; background:#FFFEFC; } .input-error { border-color:#587983; background:color-mix(in srgb, #587983 10%, #F7F3ED); }`}</style>
 	</main></div>;
 
 	return fromAccount ? <CustomerPortalShell profile={accountProfile}>{bookingPage}</CustomerPortalShell> : bookingPage;

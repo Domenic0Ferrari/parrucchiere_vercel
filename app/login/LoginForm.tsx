@@ -126,8 +126,8 @@ export default function OwnerLoginForm() {
 						type="email"
 						autoComplete="username"
 						placeholder="owner@salone.it"
-						className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-900 ${
-							fieldErrors.email ? "border-red-500" : "border-zinc-300"
+						className={`app-input ${
+							fieldErrors.email ? "app-input--error" : ""
 						}`}
 						value={email}
 						onChange={(event) => {
@@ -162,8 +162,8 @@ export default function OwnerLoginForm() {
 						type="password"
 						autoComplete="current-password"
 						placeholder="Inserisci la password"
-						className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-900 ${
-							fieldErrors.password ? "border-red-500" : "border-zinc-300"
+						className={`app-input ${
+							fieldErrors.password ? "app-input--error" : ""
 						}`}
 						value={password}
 						onChange={(event) => {
